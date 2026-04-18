@@ -1,0 +1,13 @@
+pyorbbecsdk2>=2.0.18
+opencv-python>=4.8.0
+numpy>=1.24.0
+mediapipe>=0.10.0
+PyQt6>=6.5.0
+pyautogui>=0.9.54
+
+# Security - 3D Biometric Signature
+fastdtw>=0.3.4
+scipy>=1.11.0
+
+# Optional - Better text input detection
+pygetwindow>=0.0.9

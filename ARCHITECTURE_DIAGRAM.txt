@@ -1,0 +1,388 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                        AETHER-LINK ARCHITECTURE DIAGRAM                        ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              HARDWARE LAYER                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                        ┌─────────────┴─────────────┐
+                        │  Orbbec Gemini 335 Camera │
+                        │  - Depth Sensor (Y16)     │
+                        │  - IR Left Sensor (Y8)    │
+                        │  - USB 3.0 Connection     │
+                        └─────────────┬─────────────┘
+                                      │
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              SDK LAYER                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                        ┌─────────────┴─────────────┐
+                        │   Orbbec SDK (pyorbbecsdk)│
+                        │   - Pipeline Management   │
+                        │   - Frame Synchronization │
+                        │   - Stream Configuration  │
+                        └─────────────┬─────────────┘
+                                      │
+                        ┌─────────────┴─────────────┐
+                        │   Frame Acquisition       │
+                        │   - Depth Frame (mm)      │
+                        │   - IR Frame (grayscale)  │
+                        └─────────────┬─────────────┘
+                                      │
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          PROCESSING LAYER                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                ┌─────────────────────┼─────────────────────┐
+                │                     │                     │
+                ▼                     ▼                     ▼
+    ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+    │  Camera Utils    │  │   MediaPipe      │  │  Depth Lock      │
+    │  - IR Processing │  │   - Hand Model   │  │  - 3D Mapping    │
+    │  - Depth Mapping │  │   - Landmarks    │  │  - Smoothing     │
+    │  - Colorization  │  │   - Tracking     │  │  - Validation    │
+    └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘
+             │                     │                     │
+             └─────────────────────┼─────────────────────┘
+                                   │
+                         ┌─────────┴─────────┐
+                         │   Hand Data (3D)  │
+                         │   - Index Tip     │
+                         │   - Thumb Tip     │
+                         │   - Wrist         │
+                         │   - Depth (z)     │
+                         └─────────┬─────────┘
+                                   │
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          GESTURE LAYER                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                   │
+                    ┌──────────────┴──────────────┐
+                    │   Gesture Detector          │
+                    │   ┌─────────────────────┐   │
+                    │   │ Air-Push Detection  │   │
+                    │   │ - Depth History     │   │
+                    │   │ - Threshold Check   │   │
+                    │   │ - Cooldown Timer    │   │
+                    │   └─────────────────────┘   │
+                    │   ┌─────────────────────┐   │
+                    │   │ Swipe Detection     │   │
+                    │   │ - Up/Down Movement  │   │
+                    │   │ - Delta Calculation │   │
+                    │   └─────────────────────┘   │
+                    │   ┌─────────────────────┐   │
+                    │   │ Open Palm Detection │   │
+                    │   │ - Finger Extension  │   │
+                    │   │ - Count Validation  │   │
+                    │   └─────────────────────┘   │
+                    │   ┌─────────────────────┐   │
+                    │   │ Back Zone Detection │   │
+                    │   │ - Corner Position   │   │
+                    │   │ - Zone Validation   │   │
+                    │   └─────────────────────┘   │
+                    └──────────────┬──────────────┘
+                                   │
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          STATE LAYER                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                   │
+                    ┌──────────────┴──────────────┐
+                    │    State Machine            │
+                    │                             │
+                    │   ┌─────────────────────┐   │
+                    │   │  HOME (0)           │◄──┼─── Back Zone Click
+                    │   │  - 4 Menu Buttons   │   │
+                    │   └──────┬──────────────┘   │
+                    │          │                  │
+                    │   ┌──────┼──────────────┐   │
+                    │   │      │              │   │
+                    │   ▼      ▼              ▼   │
+                    │ ┌────┐ ┌────┐ ┌──────────┐  │
+                    │ │MEDIA│MOUSE││KEYBOARD  │  │
+                    │ │ (1)││ (2)││  (3)     │  │
+                    │ └────┘ └────┘ └──────────┘  │
+                    └──────────────┬──────────────┘
+                                   │
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          CONTROL LAYER                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                   │
+                ┌──────────────────┼──────────────────┐
+                │                  │                  │
+                ▼                  ▼                  ▼
+    ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+    │   Media Mode     │ │   Mouse Mode     │ │  Keyboard Mode   │
+    │                  │ │                  │ │                  │
+    │ - Volume Up/Down │ │ - Cursor Move    │ │ - QWERTY Layout  │
+    │ - Play/Pause     │ │ - Left Click     │ │ - Type Keys      │
+    │ - Next/Previous  │ │ - Right Click    │ │ - Special Keys   │
+    │ - Mute           │ │ - Scroll         │ │ - Space/Enter    │
+    └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
+             │                    │                    │
+             └────────────────────┼────────────────────┘
+                                  │
+                        ┌─────────┴─────────┐
+                        │    PyAutoGUI      │
+                        │  - Keyboard Keys  │
+                        │  - Mouse Control  │
+                        │  - Media Keys     │
+                        └─────────┬─────────┘
+                                  │
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          UI LAYER                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                  │
+                ┌─────────────────┼─────────────────┐
+                │                 │                 │
+                ▼                 ▼                 ▼
+    ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+    │   HUD Overlay    │ │  Menu Renderer   │ │  Debug Windows   │
+    │   (PyQt6)        │ │                  │ │   (OpenCV)       │
+    │                  │ │ - Button Layout  │ │                  │
+    │ - Ghost Cursor   │ │ - Hover Check    │ │ - Hand Tracking  │
+    │ - Buttons        │ │ - Position Calc  │ │ - Depth View     │
+    │ - State Text     │ │ - Coordinate Map │ │ - IR View        │
+    │ - Back Zone      │ │                  │ │                  │
+    │ - Transparency   │ │                  │ │                  │
+    └────────┬─────────┘ └────────┬─────────┘ └────────┬─────────┘
+             │                    │                    │
+             └────────────────────┼────────────────────┘
+                                  │
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          OUTPUT LAYER                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                  │
+                ┌─────────────────┼─────────────────┐
+                │                 │                 │
+                ▼                 ▼                 ▼
+    ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+    │  Screen Display  │ │  System Control  │ │  Console Output  │
+    │  - HUD Overlay   │ │  - Media Keys    │ │  - Debug Info    │
+    │  - Visual Feed   │ │  - Mouse Move    │ │  - State Changes │
+    │  - Cursor        │ │  - Keyboard Type │ │  - Gestures      │
+    └──────────────────┘ └──────────────────┘ └──────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                            DATA FLOW DIAGRAM                                   ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+Camera → Frames → Processing → Hand Data → Gestures → State → Actions → Output
+  │        │          │            │           │         │        │         │
+  │        │          │            │           │         │        │         │
+Gemini   Depth+IR   MediaPipe    (x,y,z)   Air-Push   HOME    Volume    Screen
+ 335                  + Depth              Swipe      MEDIA    Click     System
+                      Lookup               Palm       MOUSE    Type      Console
+                                          Back Zone  KEYBOARD
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                          COORDINATE SYSTEMS                                    ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+1. CAMERA SPACE (Orbbec)
+   ┌─────────────────┐
+   │ (0,0)           │  Width: 640px (IR)
+   │                 │  Height: 480px (IR)
+   │                 │  Depth: 20-10000mm
+   │           (w,h) │
+   └─────────────────┘
+
+2. HAND SPACE (MediaPipe)
+   ┌─────────────────┐
+   │ (0.0, 0.0)      │  Normalized: 0.0 to 1.0
+   │                 │  Independent of resolution
+   │                 │
+   │      (1.0, 1.0) │
+   └─────────────────┘
+
+3. SCREEN SPACE (Display)
+   ┌─────────────────┐
+   │ (0,0)           │  Width: 1920px (configurable)
+   │                 │  Height: 1080px (configurable)
+   │                 │
+   │         (w,h)   │
+   └─────────────────┘
+
+4. INTERACTION BOX (3D Space)
+        ┌─────────┐
+       /         /│  Min Depth: 300mm
+      /         / │  Max Depth: 600mm
+     /         /  │  Width: Hand tracking area
+    /_________/   │  Height: Hand tracking area
+    │         │   /
+    │         │  /
+    │         │ /
+    └─────────┘/
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                          GESTURE DETECTION                                     ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+AIR-PUSH:
+    Time →
+    ┌─────────────────────────────────┐
+    │                                 │
+    │ Z(t₀) ────┐                     │  ΔZ ≥ 50mm
+    │           │                     │  Δt ≤ 0.2s
+    │           ▼                     │
+    │           Z(t₁) ────────────    │
+    │                                 │
+    └─────────────────────────────────┘
+
+SWIPE UP/DOWN:
+    ┌─────────────────────────────────┐
+    │     ▲                           │  Swipe Up: Δy < -30px
+    │     │ Swipe Up                  │  Swipe Down: Δy > 30px
+    │     │                           │
+    │ ────┼────                       │
+    │     │                           │
+    │     │ Swipe Down                │
+    │     ▼                           │
+    └─────────────────────────────────┘
+
+OPEN PALM:
+    ┌─────────────────────────────────┐
+    │      │   │   │   │              │  Extended fingers ≥ 3
+    │      │   │   │   │              │  (Index, Middle, Ring, Pinky)
+    │      ▼   ▼   ▼   ▼              │
+    │    ┌───────────────┐            │
+    │    │     PALM      │            │
+    │    └───────────────┘            │
+    └─────────────────────────────────┘
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                          MODULE DEPENDENCIES                                   ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+main.py
+  ├── core.depth_lock (DepthLock)
+  ├── core.gesture_detector (GestureDetector)
+  ├── core.state_machine (StateMachine, AppState)
+  ├── ui.hud_overlay (HUDOverlay)
+  ├── ui.menu_renderer (MenuRenderer)
+  ├── modes.media_mode (MediaMode)
+  ├── modes.mouse_mode (MouseMode)
+  ├── modes.keyboard_mode (KeyboardMode)
+  ├── utils.camera_utils (process_depth_frame, process_ir_frame)
+  └── utils.config (Config)
+
+core/
+  ├── depth_lock.py
+  │   ├── mediapipe
+  │   ├── cv2
+  │   └── utils.camera_utils
+  ├── gesture_detector.py
+  │   ├── time
+  │   ├── numpy
+  │   └── utils.config
+  └── state_machine.py
+      └── enum
+
+ui/
+  ├── hud_overlay.py
+  │   └── PyQt6
+  └── menu_renderer.py
+      └── utils.config
+
+modes/
+  ├── media_mode.py
+  │   ├── pyautogui
+  │   └── utils.config
+  ├── mouse_mode.py
+  │   ├── pyautogui
+  │   └── time
+  └── keyboard_mode.py
+      └── pyautogui
+
+utils/
+  ├── camera_utils.py
+  │   ├── cv2
+  │   ├── numpy
+  │   └── pyorbbecsdk
+  └── config.py
+      (no dependencies)
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                          TIMING DIAGRAM                                        ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+Frame Processing Loop (33ms target = 30 FPS)
+│
+├─ 0ms:  Wait for frames (timeout: 100ms)
+│        └─ Orbbec SDK frame acquisition
+│
+├─ 5ms:  Process depth frame
+│        ├─ Convert Y16 to float32
+│        ├─ Apply scale factor
+│        └─ Generate colormap
+│
+├─ 10ms: Process IR frame
+│        ├─ Convert Y8/Y16 to BGR
+│        └─ Normalize values
+│
+├─ 15ms: MediaPipe hand detection
+│        ├─ RGB conversion
+│        ├─ Model inference
+│        └─ Landmark extraction
+│
+├─ 20ms: Depth lookup & smoothing
+│        ├─ Get depth at (x,y)
+│        ├─ Apply EMA smoothing
+│        └─ Validate interaction box
+│
+├─ 25ms: Gesture detection
+│        ├─ Air-push check
+│        ├─ Swipe detection
+│        ├─ Palm detection
+│        └─ Back zone check
+│
+├─ 28ms: State handling & actions
+│        ├─ Process current state
+│        ├─ Execute mode actions
+│        └─ Update state if needed
+│
+├─ 30ms: UI update
+│        ├─ Update HUD overlay
+│        ├─ Render debug windows
+│        └─ Process Qt events
+│
+└─ 33ms: Loop complete, start next frame
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                          FILE SIZE ESTIMATES                                   ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+Source Code:
+  main.py                    ~10 KB
+  core/*.py                  ~15 KB
+  ui/*.py                    ~12 KB
+  modes/*.py                 ~8 KB
+  utils/*.py                 ~6 KB
+  Documentation              ~50 KB
+  ────────────────────────────────
+  Total Source:              ~101 KB
+
+Runtime Memory:
+  Depth Frame (640×480×2)    ~600 KB
+  IR Frame (640×480×1)       ~300 KB
+  MediaPipe Model            ~10 MB
+  PyQt6 Overlay              ~5 MB
+  Python Runtime             ~30 MB
+  ────────────────────────────────
+  Total RAM:                 ~50 MB
+
+Dependencies:
+  pyorbbecsdk2               ~50 MB
+  opencv-python              ~100 MB
+  mediapipe                  ~50 MB
+  PyQt6                      ~80 MB
+  pyautogui                  ~5 MB
+  numpy                      ~20 MB
+  ────────────────────────────────
+  Total Dependencies:        ~305 MB
