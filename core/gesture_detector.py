@@ -19,7 +19,16 @@ class GestureDetector:
         self.swipe_cooldown = 0.8     # seconds between swipes (prevents accidental triggers)
 
         self.last_palm_time = 0
-        self.palm_cooldown = 1.2      # seconds between play/pause triggers
+        self.palm_cooldown = 1.5      # seconds — raised from 1.2 to reduce false triggers
+
+        # Pinch gesture (thumb + index close together)
+        self.last_pinch_time = 0
+        self.pinch_cooldown = 1.0     # seconds between pinch triggers
+        self._was_pinching = False    # edge detection state
+
+        # Peace sign gesture (index + middle extended)
+        self.last_peace_time = 0
+        self.peace_cooldown = 2.0     # screenshot shouldn't fire often
 
     # ------------------------------------------------------------------
     # Max plausible human hand push: ~1.5 m/s × 0.35 s = 525 mm → cap at 600 mm.
@@ -147,8 +156,9 @@ class GestureDetector:
     # ------------------------------------------------------------------
     def detect_open_palm(self, hand_data):
         """
-        Detect open palm (≥3 fingers extended above their PIP joint).
-        Works with both old (landmarks.landmark) and new (landmarks_list) format.
+        Detect open palm — ALL 4 fingers must be extended (was 3, too sensitive).
+        Used for mode-specific actions: Play/Pause, New Tab, Maximize.
+        NOT used for keyboard (use Pinch instead).
         """
         if hand_data is None:
             return False
@@ -156,7 +166,6 @@ class GestureDetector:
         if now - self.last_palm_time < self.palm_cooldown:
             return False
 
-        # Support both old and new MediaPipe format
         if 'landmarks_list' in hand_data:
             landmarks = hand_data['landmarks_list']
         elif 'landmarks' in hand_data:
@@ -170,9 +179,79 @@ class GestureDetector:
             1 for tip, pip in zip(finger_tips, finger_pips)
             if landmarks[tip].y < landmarks[pip].y
         )
-        if extended >= 3:
+        if extended >= 4:   # ALL 4 fingers must be clearly extended
             self.last_palm_time = now
-            print("[Gesture] Open Palm — Play/Pause")
+            print("[Gesture] Open Palm \U0001f590")
+            return True
+        return False
+
+    # ------------------------------------------------------------------
+    # Pinch: thumb tip + index tip close together
+    PINCH_THRESHOLD = 0.06   # normalised distance (~3 cm at 50 cm range)
+
+    def detect_pinch(self, hand_data):
+        """
+        Detect pinch (thumb tip + index finger tip close together).
+        Edge-triggered: fires ONCE when fingers come together.
+        Used globally for toggling the keyboard overlay.
+        """
+        if hand_data is None:
+            self._was_pinching = False
+            return False
+        now = time.time()
+        if now - self.last_pinch_time < self.pinch_cooldown:
+            return False
+
+        if 'landmarks_list' not in hand_data:
+            return False
+
+        landmarks = hand_data['landmarks_list']
+        thumb = landmarks[4]   # THUMB_TIP
+        index = landmarks[8]   # INDEX_FINGER_TIP
+
+        dx = thumb.x - index.x
+        dy = thumb.y - index.y
+        dist = (dx ** 2 + dy ** 2) ** 0.5
+
+        is_pinching = dist < self.PINCH_THRESHOLD
+
+        # Edge detection — only fire on NOT-pinching → pinching transition
+        if is_pinching and not self._was_pinching:
+            self._was_pinching = True
+            self.last_pinch_time = now
+            print(f"[Gesture] Pinch! (d={dist:.3f})")
+            return True
+
+        if not is_pinching:
+            self._was_pinching = False
+
+        return False
+
+    # ------------------------------------------------------------------
+    def detect_peace_sign(self, hand_data):
+        """
+        Detect peace / victory sign: index + middle extended, ring + pinky closed.
+        Used for taking a screenshot.
+        """
+        if hand_data is None:
+            return False
+        now = time.time()
+        if now - self.last_peace_time < self.peace_cooldown:
+            return False
+
+        if 'landmarks_list' not in hand_data:
+            return False
+
+        landmarks = hand_data['landmarks_list']
+
+        index_ext  = landmarks[8].y  < landmarks[6].y   # tip above PIP
+        middle_ext = landmarks[12].y < landmarks[10].y
+        ring_closed  = landmarks[16].y >= landmarks[14].y
+        pinky_closed = landmarks[20].y >= landmarks[18].y
+
+        if index_ext and middle_ext and ring_closed and pinky_closed:
+            self.last_peace_time = now
+            print("[Gesture] Peace Sign \u270c\ufe0f — Screenshot!")
             return True
         return False
 
@@ -193,3 +272,6 @@ class GestureDetector:
         self.last_click_time = 0
         self.last_swipe_time = 0
         self.last_palm_time = 0
+        self.last_pinch_time = 0
+        self.last_peace_time = 0
+        self._was_pinching = False

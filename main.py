@@ -21,6 +21,7 @@ from modes.window_mode import WindowMode
 from utils.camera_utils import process_depth_frame, process_ir_frame, process_color_frame
 import os
 import time
+import pyautogui
 from utils.config import Config as AppConfig
 from security.signature_recorder import SignatureRecorder
 from security.signature_verifier import SignatureVerifier
@@ -328,11 +329,27 @@ class AetherLink:
         return False
 
     def handle_home_mode(self, air_push):
+        # Check keyboard overlay first
+        if self.state_machine.has_keyboard_overlay():
+            sx, sy = self._screen_pos()
+            self.handle_keyboard_overlay(air_push, sx, sy)
+            return
+        
         buttons  = self.menu_renderer.get_home_menu_buttons()
         sx, sy   = self._screen_pos()
         hovered  = self.menu_renderer.check_button_hover(buttons, sx, sy)
         clicked, dwell_p = self._check_dwell(hovered, air_push)
         self.hud.set_dwell_progress(dwell_p)
+
+        # Pinch → toggle keyboard
+        if self.gesture_detector.detect_pinch(self.current_hand_data):
+            self.state_machine.toggle_keyboard_overlay()
+            return
+        
+        # Peace sign → screenshot
+        if self.gesture_detector.detect_peace_sign(self.current_hand_data):
+            self._take_screenshot()
+            return
 
         if clicked and hovered is not None:
             bid = buttons[hovered]['id']
@@ -346,7 +363,6 @@ class AetherLink:
     def handle_media_mode(self, air_push):
         sx, sy = self._screen_pos()
         
-        # Check if keyboard overlay is active
         if self.state_machine.has_keyboard_overlay():
             self.handle_keyboard_overlay(air_push, sx, sy)
             return
@@ -355,51 +371,91 @@ class AetherLink:
             self.state_machine.go_to_home()
             return
         
-        # Open Palm toggles keyboard (global shortcut)
-        if self.gesture_detector.detect_open_palm(self.current_hand_data):
-            self.state_machine.show_keyboard_overlay('manual')
+        # Pinch → toggle keyboard (deliberate gesture)
+        if self.gesture_detector.detect_pinch(self.current_hand_data):
+            self.state_machine.toggle_keyboard_overlay()
             return
         
+        # Peace sign → screenshot
+        if self.gesture_detector.detect_peace_sign(self.current_hand_data):
+            self._take_screenshot()
+            return
+        
+        # Open Palm → Play/Pause (its ORIGINAL purpose, not keyboard!)
+        if self.gesture_detector.detect_open_palm(self.current_hand_data):
+            self.media_mode.play_pause()
+            return
+        
+        # Swipe gestures
         if self.gesture_detector.detect_swipe_up(self.current_hand_data, self.prev_hand_data):
             self.media_mode.volume_up()
             return
-        
         if self.gesture_detector.detect_swipe_down(self.current_hand_data, self.prev_hand_data):
             self.media_mode.volume_down()
             return
+        if self.gesture_detector.detect_swipe_right(self.current_hand_data, self.prev_hand_data):
+            self.media_mode.next_track()
+            return
+        if self.gesture_detector.detect_swipe_left(self.current_hand_data, self.prev_hand_data):
+            self.media_mode.previous_track()
+            return
+        
+        # Clickable buttons (air-push/dwell on specific buttons)
+        buttons = self.menu_renderer.get_media_menu_buttons()
+        hovered = self.menu_renderer.check_button_hover(buttons, sx, sy)
+        clicked, dwell_p = self._check_dwell(hovered, air_push)
+        self.hud.set_dwell_progress(dwell_p)
+        
+        if clicked and hovered is not None:
+            bid = buttons[hovered]['id']
+            if bid == 'play_pause':    self.media_mode.play_pause()
+            elif bid == 'next_track':  self.media_mode.next_track()
+            elif bid == 'volume_up':   self.media_mode.volume_up()
+            elif bid == 'volume_down': self.media_mode.volume_down()
     
     def handle_mouse_mode(self, air_push):
         sx, sy = self._screen_pos()
         
-        # Check if keyboard overlay is active
         if self.state_machine.has_keyboard_overlay():
-            # Keyboard overlay takes priority - handle keyboard input
             self.handle_keyboard_overlay(air_push, sx, sy)
             return
         
-        # Normal mouse mode
         if self._check_back(sx, sy, air_push, None):
             self.state_machine.go_to_home()
             return
         
+        # Pinch → toggle keyboard (deliberate gesture)
+        if self.gesture_detector.detect_pinch(self.current_hand_data):
+            self.state_machine.toggle_keyboard_overlay()
+            return
+        
+        # Peace sign → screenshot
+        if self.gesture_detector.detect_peace_sign(self.current_hand_data):
+            self._take_screenshot()
+            return
+        
+        # Normal mouse control
         self.mouse_mode.move_cursor_screen(sx, sy)
         
         if air_push:
             self.mouse_mode.click()
-            # Context-aware keyboard: check if click was in text input
-            if self.mouse_mode.is_text_input_likely():
-                self.state_machine.show_keyboard_overlay('text_input_click')
     
     def handle_keyboard_overlay(self, air_push, sx, sy):
         """
-        Handle keyboard overlay input (appears over any primary mode).
-        User can type or dismiss the keyboard.
+        Keyboard overlay — type with air-push on keys.
+        Dismiss: Pinch (toggle) or BACK button. NOT swipe (avoids conflicts).
         """
-        # Check for dismiss gesture (swipe down or click outside keyboard area)
-        if self.gesture_detector.detect_swipe_down(self.current_hand_data, self.prev_hand_data):
+        # Pinch → dismiss keyboard (same gesture that opened it)
+        if self.gesture_detector.detect_pinch(self.current_hand_data):
             self.state_machine.dismiss_keyboard_overlay()
             return
         
+        # BACK button → dismiss keyboard
+        if self._check_back(sx, sy, air_push, None):
+            self.state_machine.dismiss_keyboard_overlay()
+            return
+        
+        # Type on keyboard buttons
         buttons = self.keyboard_mode.get_keyboard_buttons(
             AppConfig.SCREEN_WIDTH, AppConfig.SCREEN_HEIGHT
         )
@@ -414,7 +470,6 @@ class AetherLink:
     def handle_tab_mode(self, air_push):
         sx, sy = self._screen_pos()
         
-        # Check if keyboard overlay is active
         if self.state_machine.has_keyboard_overlay():
             self.handle_keyboard_overlay(air_push, sx, sy)
             return
@@ -423,26 +478,41 @@ class AetherLink:
             self.state_machine.go_to_home()
             return
         
-        # Open Palm toggles keyboard (global shortcut)
-        if self.gesture_detector.detect_open_palm(self.current_hand_data):
-            self.state_machine.show_keyboard_overlay('manual')
+        # Pinch → toggle keyboard (deliberate gesture)
+        if self.gesture_detector.detect_pinch(self.current_hand_data):
+            self.state_machine.toggle_keyboard_overlay()
             return
         
+        # Peace sign → screenshot
+        if self.gesture_detector.detect_peace_sign(self.current_hand_data):
+            self._take_screenshot()
+            return
+        
+        # Swipe shortcuts (still work)
         if self.gesture_detector.detect_swipe_right(self.current_hand_data, self.prev_hand_data):
             self.tab_mode.next_tab()
             return
-        
         if self.gesture_detector.detect_swipe_left(self.current_hand_data, self.prev_hand_data):
             self.tab_mode.previous_tab()
             return
         
-        if air_push:
-            self.tab_mode.close_tab()
+        # Button-based actions — Close Tab ONLY fires on button hover!
+        # No more accidental tab closing from random air-pushes.
+        buttons = self.menu_renderer.get_tab_menu_buttons()
+        hovered = self.menu_renderer.check_button_hover(buttons, sx, sy)
+        clicked, dwell_p = self._check_dwell(hovered, air_push)
+        self.hud.set_dwell_progress(dwell_p)
+        
+        if clicked and hovered is not None:
+            bid = buttons[hovered]['id']
+            if bid == 'next_tab':    self.tab_mode.next_tab()
+            elif bid == 'prev_tab':  self.tab_mode.previous_tab()
+            elif bid == 'close_tab': self.tab_mode.close_tab()
+            elif bid == 'new_tab':   self.tab_mode.new_tab()
 
     def handle_window_mode(self, air_push):
         sx, sy = self._screen_pos()
         
-        # Check if keyboard overlay is active
         if self.state_machine.has_keyboard_overlay():
             self.handle_keyboard_overlay(air_push, sx, sy)
             return
@@ -451,26 +521,43 @@ class AetherLink:
             self.state_machine.go_to_home()
             return
         
-        # Open Palm toggles keyboard (global shortcut)
-        if self.gesture_detector.detect_open_palm(self.current_hand_data):
-            self.state_machine.show_keyboard_overlay('manual')
+        # Pinch → toggle keyboard (deliberate gesture)
+        if self.gesture_detector.detect_pinch(self.current_hand_data):
+            self.state_machine.toggle_keyboard_overlay()
             return
         
+        # Peace sign → screenshot
+        if self.gesture_detector.detect_peace_sign(self.current_hand_data):
+            self._take_screenshot()
+            return
+        
+        # Swipe shortcuts (still work)
         if self.gesture_detector.detect_swipe_right(self.current_hand_data, self.prev_hand_data):
             self.window_mode.next_window()
             return
-        
         if self.gesture_detector.detect_swipe_left(self.current_hand_data, self.prev_hand_data):
             self.window_mode.previous_window()
             return
-        
         if self.gesture_detector.detect_swipe_up(self.current_hand_data, self.prev_hand_data):
             self.window_mode.show_task_view()
             return
-        
         if self.gesture_detector.detect_swipe_down(self.current_hand_data, self.prev_hand_data):
             self.window_mode.minimize_window()
             return
+        
+        # Clickable buttons
+        buttons = self.menu_renderer.get_window_menu_buttons()
+        hovered = self.menu_renderer.check_button_hover(buttons, sx, sy)
+        clicked, dwell_p = self._check_dwell(hovered, air_push)
+        self.hud.set_dwell_progress(dwell_p)
+        
+        if clicked and hovered is not None:
+            bid = buttons[hovered]['id']
+            if bid == 'next_window':  self.window_mode.next_window()
+            elif bid == 'prev_window': self.window_mode.previous_window()
+            elif bid == 'task_view':  self.window_mode.show_task_view()
+            elif bid == 'minimize':   self.window_mode.minimize_window()
+            elif bid == 'maximize':   self.window_mode.maximize_window()
 
     # ------------------------------------------------------------------
     def handle_locked_mode(self, air_push):
@@ -531,6 +618,12 @@ class AetherLink:
             self.sig_recorder.start_recording()
             self.hud.flash_click()
     
+    def _take_screenshot(self):
+        """Take screenshot with Win+PrintScreen."""
+        pyautogui.hotkey('win', 'printscreen')
+        print("[Action] Screenshot taken! (Win+PrintScreen)")
+        self.hud.flash_click()
+
     @staticmethod
     def _map_to_screen(norm, margin, screen_size):
         """
@@ -575,99 +668,57 @@ class AetherLink:
                 self.hud.set_dwell_progress(0)
             return
 
+        # ── Keyboard overlay HUD (same for every mode) ──────────────────
+        if self.state_machine.has_keyboard_overlay():
+            mode_name = self.state_machine.current_state.name
+            buttons = self.keyboard_mode.get_keyboard_buttons(
+                AppConfig.SCREEN_WIDTH, AppConfig.SCREEN_HEIGHT
+            )
+            hovered = self.menu_renderer.check_button_hover(buttons, screen_x, screen_y)
+            self.hud.set_buttons(buttons)
+            self.hud.set_hovered_button(hovered)
+            self.hud.set_state_text(f"{mode_name} + KEYBOARD")
+            self.hud.set_info_text("Type with air-push | Pinch or BACK to dismiss")
+            return
+
+        # ── Normal mode HUD ──────────────────────────────────────────────
         if self.state_machine.is_home():
-            # Check if keyboard overlay is active
-            if self.state_machine.has_keyboard_overlay():
-                buttons = self.keyboard_mode.get_keyboard_buttons(
-                    AppConfig.SCREEN_WIDTH, 
-                    AppConfig.SCREEN_HEIGHT
-                )
-                hovered = self.menu_renderer.check_button_hover(buttons, screen_x, screen_y)
-                self.hud.set_buttons(buttons)
-                self.hud.set_hovered_button(hovered)
-                self.hud.set_state_text("HOME + KEYBOARD")
-                self.hud.set_info_text("Type with keyboard | BACK button to dismiss")
-            else:
-                buttons = self.menu_renderer.get_home_menu_buttons()
-                hovered = self.menu_renderer.check_button_hover(buttons, screen_x, screen_y)
-                self.hud.set_buttons(buttons)
-                self.hud.set_hovered_button(hovered)
-                self.hud.set_state_text("HOME MENU")
-                self.hud.set_info_text("Select a mode with air-push gesture")
+            buttons = self.menu_renderer.get_home_menu_buttons()
+            hovered = self.menu_renderer.check_button_hover(buttons, screen_x, screen_y)
+            self.hud.set_buttons(buttons)
+            self.hud.set_hovered_button(hovered)
+            self.hud.set_state_text("HOME MENU")
+            self.hud.set_info_text("Air-push to select | Pinch for keyboard | Peace for screenshot")
             
         elif self.state_machine.is_media():
-            # Check if keyboard overlay is active
-            if self.state_machine.has_keyboard_overlay():
-                buttons = self.keyboard_mode.get_keyboard_buttons(
-                    AppConfig.SCREEN_WIDTH, 
-                    AppConfig.SCREEN_HEIGHT
-                )
-                hovered = self.menu_renderer.check_button_hover(buttons, screen_x, screen_y)
-                self.hud.set_buttons(buttons)
-                self.hud.set_hovered_button(hovered)
-                self.hud.set_state_text("MEDIA + KEYBOARD")
-                self.hud.set_info_text("Type with keyboard | BACK button to dismiss")
-            else:
-                buttons = self.menu_renderer.get_media_menu_buttons()
-                self.hud.set_buttons(buttons)
-                self.hud.set_hovered_button(None)
-                self.hud.set_state_text("MEDIA CONTROL")
-                self.hud.set_info_text("Swipe Up/Down for volume | Open Palm for keyboard")
+            buttons = self.menu_renderer.get_media_menu_buttons()
+            hovered = self.menu_renderer.check_button_hover(buttons, screen_x, screen_y)
+            self.hud.set_buttons(buttons)
+            self.hud.set_hovered_button(hovered)
+            self.hud.set_state_text("MEDIA CONTROL")
+            self.hud.set_info_text("Swipe: Vol Up/Down, Track L/R | Palm: Play/Pause | Pinch: Keyboard")
             
         elif self.state_machine.is_mouse():
-            # Check if keyboard overlay is active
-            if self.state_machine.has_keyboard_overlay():
-                buttons = self.keyboard_mode.get_keyboard_buttons(
-                    AppConfig.SCREEN_WIDTH, 
-                    AppConfig.SCREEN_HEIGHT
-                )
-                hovered = self.menu_renderer.check_button_hover(buttons, screen_x, screen_y)
-                self.hud.set_buttons(buttons)
-                self.hud.set_hovered_button(hovered)
-                self.hud.set_state_text("MOUSE + KEYBOARD")
-                self.hud.set_info_text("Type with keyboard | BACK button to dismiss")
-            else:
-                self.hud.set_buttons([])
-                self.hud.set_state_text("AIR MOUSE")
-                self.hud.set_info_text("Move hand to control cursor | Open Palm for keyboard")
+            self.hud.set_buttons([])
+            self.hud.set_hovered_button(None)
+            self.hud.set_state_text("AIR MOUSE")
+            self.hud.set_info_text("Move hand to control cursor | Air-push to click | Pinch: Keyboard")
             
         elif self.state_machine.is_tab():
-            # Check if keyboard overlay is active
-            if self.state_machine.has_keyboard_overlay():
-                buttons = self.keyboard_mode.get_keyboard_buttons(
-                    AppConfig.SCREEN_WIDTH, 
-                    AppConfig.SCREEN_HEIGHT
-                )
-                hovered = self.menu_renderer.check_button_hover(buttons, screen_x, screen_y)
-                self.hud.set_buttons(buttons)
-                self.hud.set_hovered_button(hovered)
-                self.hud.set_state_text("TAB + KEYBOARD")
-                self.hud.set_info_text("Type with keyboard | BACK button to dismiss")
-            else:
-                buttons = self.menu_renderer.get_tab_menu_buttons()
-                self.hud.set_buttons(buttons)
-                self.hud.set_hovered_button(None)
-                self.hud.set_state_text("TAB SWITCHER")
-                self.hud.set_info_text("Swipe Left/Right to switch tabs | Open Palm for keyboard")
+            buttons = self.menu_renderer.get_tab_menu_buttons()
+            hovered = self.menu_renderer.check_button_hover(buttons, screen_x, screen_y)
+            self.hud.set_buttons(buttons)
+            self.hud.set_hovered_button(hovered)
+            self.hud.set_state_text("TAB SWITCHER")
+            self.hud.set_info_text("Swipe L/R to switch | Click buttons for actions | Pinch: Keyboard")
             
         elif self.state_machine.is_window():
-            # Check if keyboard overlay is active
-            if self.state_machine.has_keyboard_overlay():
-                buttons = self.keyboard_mode.get_keyboard_buttons(
-                    AppConfig.SCREEN_WIDTH, 
-                    AppConfig.SCREEN_HEIGHT
-                )
-                hovered = self.menu_renderer.check_button_hover(buttons, screen_x, screen_y)
-                self.hud.set_buttons(buttons)
-                self.hud.set_hovered_button(hovered)
-                self.hud.set_state_text("WINDOW + KEYBOARD")
-                self.hud.set_info_text("Type with keyboard | BACK button to dismiss")
-            else:
-                buttons = self.menu_renderer.get_window_menu_buttons()
-                self.hud.set_buttons(buttons)
-                self.hud.set_hovered_button(None)
-                self.hud.set_state_text("WINDOW SWITCHER")
-                self.hud.set_info_text("Swipe to switch windows | Open Palm for keyboard")
+            buttons = self.menu_renderer.get_window_menu_buttons()
+            hovered = self.menu_renderer.check_button_hover(buttons, screen_x, screen_y)
+            self.hud.set_buttons(buttons)
+            self.hud.set_hovered_button(hovered)
+            self.hud.set_state_text("WINDOW SWITCHER")
+            self.hud.set_info_text("Swipe to switch/minimize/taskview | Click buttons | Pinch: Keyboard")
     
     def cleanup(self):
         print("\nShutting down Aether-Link...")
@@ -687,11 +738,15 @@ class AetherLink:
         print("\n" + "="*60)
         print("  AETHER-LINK: Touchless Gesture Interface")
         print("="*60)
-        print("  Controls:")
-        print("    - Move hand in air (30-60cm from camera)")
-        print("    - Air-push (push forward) to click/select")
-        print("    - Top-left corner to go back to menu")
-        print("    - Press 'Q' in OpenCV window to quit")
+        print("  Gestures:")
+        print("    Air-Push   (push forward 5cm) → Click / Select")
+        print("    Pinch      (thumb + index)    → Toggle Keyboard")
+        print("    Peace Sign (index + middle)   → Screenshot")
+        print("    Open Palm  (all fingers)      → Play/Pause")
+        print("    Swipe      (move hand fast)   → Directional")
+        print("  Navigation:")
+        print("    BACK button (top-center)      → Go back")
+        print("    Press 'Q' in OpenCV window    → Quit")
         print("="*60 + "\n")
         
         sys.exit(self.app.exec())

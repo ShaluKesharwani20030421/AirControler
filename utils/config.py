@@ -5,8 +5,8 @@ class Config:
     INTERACTION_BOX_MAX = 1200   # 120 cm maximum
 
     # Air-push: finger must move this many mm closer in TIME_WINDOW seconds
-    AIR_CLICK_THRESHOLD = 30     # 3 cm push (was 5 cm, now more natural)
-    AIR_CLICK_TIME_WINDOW = 0.35 # 350 ms window (was 200 ms)
+    AIR_CLICK_THRESHOLD = 50     # 5 cm push — eliminates false triggers from tremor
+    AIR_CLICK_TIME_WINDOW = 0.35 # 350 ms window
 
     SCREEN_WIDTH = 1920
     SCREEN_HEIGHT = 1080

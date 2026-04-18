@@ -46,49 +46,67 @@ class MenuRenderer:
 
     # ── MEDIA mode ────────────────────────────────────────────────────
     def get_media_menu_buttons(self):
-        """3 gesture-hint labels centered vertically in the safe zone."""
+        """Media control — 2×2 grid of clickable action buttons."""
         W, H = self.screen_width, self.screen_height
-        bw, bh = 320, 100
-        cx = W // 2 - bw // 2
+        bw, bh = 280, 100
+        gap = 30
+        gw = 2 * bw + gap
+        gh = 2 * bh + gap
+        x0 = W // 2 - gw // 2
+        y0 = H // 2 - gh // 2
         return [
-            {'id': 'play_pause',   'text': '⏯  Open Palm → Play/Pause',
-             'rect': (cx, H // 2 - 160, bw, bh)},
-            {'id': 'volume_up',    'text': '🔊  Swipe UP → Volume Up',
-             'rect': (cx, H // 2 - 40,  bw, bh)},
-            {'id': 'volume_down',  'text': '🔉  Swipe DOWN → Volume Down',
-             'rect': (cx, H // 2 + 80,  bw, bh)},
+            {'id': 'play_pause',   'text': '⏯  Play / Pause',
+             'rect': (x0, y0, bw, bh)},
+            {'id': 'next_track',   'text': '⏭️  Next Track',
+             'rect': (x0 + bw + gap, y0, bw, bh)},
+            {'id': 'volume_up',    'text': '🔊  Volume Up',
+             'rect': (x0, y0 + bh + gap, bw, bh)},
+            {'id': 'volume_down',  'text': '🔉  Volume Down',
+             'rect': (x0 + bw + gap, y0 + bh + gap, bw, bh)},
         ]
 
     # ── TAB mode ──────────────────────────────────────────────────────
     def get_tab_menu_buttons(self):
-        """Tab switching gesture hints centered in safe zone."""
+        """Tab control — 2×2 grid of clickable action buttons."""
         W, H = self.screen_width, self.screen_height
-        bw, bh = 340, 100
-        cx = W // 2 - bw // 2
+        bw, bh = 280, 100
+        gap = 30
+        gw = 2 * bw + gap
+        gh = 2 * bh + gap
+        x0 = W // 2 - gw // 2
+        y0 = H // 2 - gh // 2
         return [
-            {'id': 'next_tab',     'text': '➡️  Swipe RIGHT → Next Tab',
-             'rect': (cx, H // 2 - 160, bw, bh)},
-            {'id': 'prev_tab',     'text': '⬅️  Swipe LEFT → Previous Tab',
-             'rect': (cx, H // 2 - 40,  bw, bh)},
-            {'id': 'close_tab',    'text': '❌  Air-Push → Close Tab',
-             'rect': (cx, H // 2 + 80,  bw, bh)},
+            {'id': 'next_tab',     'text': '➡️  Next Tab',
+             'rect': (x0, y0, bw, bh)},
+            {'id': 'prev_tab',     'text': '⬅️  Previous Tab',
+             'rect': (x0 + bw + gap, y0, bw, bh)},
+            {'id': 'close_tab',    'text': '❌  Close Tab',
+             'rect': (x0, y0 + bh + gap, bw, bh)},
+            {'id': 'new_tab',      'text': '➕  New Tab',
+             'rect': (x0 + bw + gap, y0 + bh + gap, bw, bh)},
         ]
 
     # ── WINDOW mode ───────────────────────────────────────────────────
     def get_window_menu_buttons(self):
-        """Window switching gesture hints centered in safe zone."""
+        """Window control — 2×2 grid + 1 below of clickable action buttons."""
         W, H = self.screen_width, self.screen_height
-        bw, bh = 360, 100
-        cx = W // 2 - bw // 2
+        bw, bh = 280, 90
+        gap = 25
+        gw = 2 * bw + gap
+        gh = 2 * bh + gap
+        x0 = W // 2 - gw // 2
+        y0 = H // 2 - gh // 2 - 50
         return [
-            {'id': 'next_window',  'text': '➡️  Swipe RIGHT → Next Window',
-             'rect': (cx, H // 2 - 200, bw, bh)},
-            {'id': 'prev_window',  'text': '⬅️  Swipe LEFT → Previous Window',
-             'rect': (cx, H // 2 - 80,  bw, bh)},
-            {'id': 'minimize',     'text': '⬇️  Air-Push → Minimize Window',
-             'rect': (cx, H // 2 + 40,  bw, bh)},
-            {'id': 'task_view',    'text': '👁️  Open Palm → Task View',
-             'rect': (cx, H // 2 + 160, bw, bh)},
+            {'id': 'next_window',  'text': '➡️  Next Window',
+             'rect': (x0, y0, bw, bh)},
+            {'id': 'prev_window',  'text': '⬅️  Previous Window',
+             'rect': (x0 + bw + gap, y0, bw, bh)},
+            {'id': 'task_view',    'text': '📋  Task View',
+             'rect': (x0, y0 + bh + gap, bw, bh)},
+            {'id': 'minimize',     'text': '⬇️  Minimize',
+             'rect': (x0 + bw + gap, y0 + bh + gap, bw, bh)},
+            {'id': 'maximize',     'text': '⬆️  Maximize',
+             'rect': (W // 2 - bw // 2, y0 + 2 * (bh + gap), bw, bh)},
         ]
 
     # ── Helpers ───────────────────────────────────────────────────────
