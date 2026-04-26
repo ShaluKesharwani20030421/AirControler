@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Touchless 3D Interface — Presentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        :root {
+            --bg: #fbfbfd;
+            --card: #ffffff;
+            --text: #1d1d1f;
+            --sub: #6e6e73;
+            --gold: #b4915f;
+            --gold-light: #decba4;
+            --border: rgba(0,0,0,0.08);
+        }
+        body {
+            background: var(--bg);
+            display: grid;
+            gap: 40px;
+            grid-template-columns: 1fr;
+            margin: 0;
+            padding: 40px 0;
+            place-items: center;
+            font-family: 'Inter', -apple-system, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .slide {
+            background: var(--card);
+            border-radius: 32px;
+            box-shadow: 0 30px 60px rgba(180,145,95,0.06);
+            display: flex;
+            flex-direction: column;
+            height: 720px;
+            width: 1280px;
+            overflow: hidden;
+            padding: 60px 80px;
+            position: relative;
+            border: 1px solid var(--border);
+        }
+        .slide::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--gold), var(--gold-light), var(--gold));
+        }
+        h1 {
+            font-size: 72px; font-weight: 700;
+            letter-spacing: -0.04em; margin: 0;
+            background: linear-gradient(135deg, #1d1d1f 0%, #b4915f 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        h2.slide-title {
+            font-size: 42px; font-weight: 600;
+            letter-spacing: -0.02em; color: var(--text);
+            margin: 0 0 36px 0;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--gold-light);
+        }
+        h3 { font-size: 22px; font-weight: 600; color: var(--text); margin: 0 0 10px 0; }
+        p, li { font-size: 18px; line-height: 1.65; color: var(--sub); margin: 0; }
+        .accent { color: var(--gold); font-weight: 600; }
+        .hero {
+            text-align: center; display: flex;
+            flex-direction: column; justify-content: center;
+            align-items: center; height: 100%;
+        }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+        .card-grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px; }
+        .card-grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: 24px; }
+        .card {
+            background: #fbfbfd; border: 1px solid var(--border);
+            border-radius: 24px; padding: 36px 30px;
+            transition: all 0.3s ease;
+        }
+        .card:hover { transform: translateY(-6px); box-shadow: 0 20px 40px rgba(180,145,95,0.1); border-color: var(--gold-light); }
+        .icon-box {
+            font-size: 28px; color: var(--gold);
+            background: #fff; width: 60px; height: 60px;
+            border-radius: 16px; display: flex;
+            align-items: center; justify-content: center;
+            border: 1px solid var(--border); margin-bottom: 18px;
+        }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { margin-bottom: 16px; padding-left: 28px; position: relative; }
+        li::before { content: '•'; color: var(--gold); position: absolute; left: 0; font-size: 22px; top: -3px; font-weight: 700; }
+        .badge {
+            display: inline-block; padding: 5px 14px;
+            border-radius: 20px; font-size: 13px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;
+        }
+        .badge-gold { background: #fef3e2; color: #92400e; }
+        .badge-blue { background: #eff6ff; color: #1e40af; }
+        .badge-green { background: #f0fdf4; color: #166534; }
+        .badge-red { background: #fef2f2; color: #991b1b; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
+        th { background: #fbfbfd; padding: 20px 24px; text-align: left; font-size: 16px; font-weight: 600; color: var(--text); border-bottom: 1px solid var(--border); }
+        td { padding: 18px 24px; background: #fff; border-bottom: 1px solid var(--border); font-size: 16px; color: var(--sub); }
+        tr:last-child td { border-bottom: none; }
+        .timeline { display: flex; justify-content: space-between; position: relative; margin-top: 50px; }
+        .timeline::after { content:''; position: absolute; top: 26px; left: 5%; width: 90%; height: 2px; background: linear-gradient(90deg, #f5f5f7, var(--gold-light), #f5f5f7); z-index: 0; }
+        .step { position: relative; z-index: 1; width: 22%; text-align: center; }
+        .dot {
+            width: 52px; height: 52px; background: #fff;
+            border: 2px solid var(--gold); border-radius: 50%;
+            margin: 0 auto 20px; display: flex;
+            align-items: center; justify-content: center;
+            color: var(--gold); font-weight: 700; font-size: 18px;
+            box-shadow: 0 8px 16px rgba(180,145,95,0.15);
+        }
+        .slide-num {
+            position: absolute; bottom: 28px; right: 40px;
+            font-size: 14px; color: var(--gold-light); font-weight: 500;
+        }
+        .tag-row { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+        .vs-divider {
+            display: flex; align-items: center; justify-content: center;
+            font-size: 32px; color: var(--gold); font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══ SLIDE 1: TITLE ═══ -->
+<div class="slide">
+    <div class="hero">
+        <div style="margin-bottom:24px;">
+            <span class="badge badge-gold" style="font-size:15px; padding:8px 20px;">Final Year Project Presentation</span>
+        </div>
+        <h1>Touchless 3D Interface</h1>
+        <p style="font-size:26px; margin-top:20px; color:#6e6e73;">A Hybrid Gesture + Voice Computer Control System</p>
+        <div style="margin-top:50px; display:flex; gap:32px; justify-content:center;">
+            <div style="text-align:center;">
+                <div style="font-size:13px; text-transform:uppercase; letter-spacing:0.1em; color:var(--gold); font-weight:600;">Hardware</div>
+                <div style="font-size:17px; font-weight:500; color:var(--text); margin-top:4px;">Orbbec Gemini 335</div>
+            </div>
+            <div style="width:1px; background:var(--border);"></div>
+            <div style="text-align:center;">
+                <div style="font-size:13px; text-transform:uppercase; letter-spacing:0.1em; color:var(--gold); font-weight:600;">Engine</div>
+                <div style="font-size:17px; font-weight:500; color:var(--text); margin-top:4px;">MediaPipe + Vosk</div>
+            </div>
+            <div style="width:1px; background:var(--border);"></div>
+            <div style="text-align:center;">
+                <div style="font-size:13px; text-transform:uppercase; letter-spacing:0.1em; color:var(--gold); font-weight:600;">Mode</div>
+                <div style="font-size:17px; font-weight:500; color:var(--text); margin-top:4px;">100% Offline & Private</div>
+            </div>
+        </div>
+        <p style="margin-top:50px; font-size:16px; color:#aaa;">Shalu Kesharwani</p>
+    </div>
+    <div class="slide-num">1 / 12</div>
+</div>
+
+<!-- ═══ SLIDE 2: PROBLEM STATEMENT ═══ -->
+<div class="slide">
+    <h2 class="slide-title">The Problem — Why This Was Needed</h2>
+    <div class="grid-2" style="flex:1; align-items:start;">
+        <ul style="margin-top:8px;">
+            <li><strong>Hygiene & Sterility:</strong> In hospitals and labs, touching a shared mouse or keyboard spreads infection — surgeons cannot touch anything non-sterile.</li>
+            <li><strong>Accessibility:</strong> Users with limited hand mobility struggle to use a physical mouse or type on small keys.</li>
+            <li><strong>"Gorilla Arm" Fatigue:</strong> Older gesture systems required large arm movements — users got exhausted within minutes.</li>
+            <li><strong>Inaccuracy of Old Systems:</strong> Background noise triggered fake clicks. The cursor would jump or jitter at the moment of clicking.</li>
+        </ul>
+        <div style="background:#fbfbfd; border-radius:28px; border:1px solid var(--border); padding:40px; height:420px; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:24px;">
+            <div style="font-size:80px;">🏥</div>
+            <p style="text-align:center; font-size:20px; color:var(--text); font-weight:500;">A surgeon cannot touch a mouse<br>during an operation.</p>
+            <p style="text-align:center; font-size:16px;">They need a <span class="accent">touchless, sterile, precise</span> interface.</p>
+        </div>
+    </div>
+    <div class="slide-num">2 / 12</div>
+</div>
+
+<!-- ═══ SLIDE 3: THE SOLUTION ═══ -->
+<div class="slide">
+    <h2 class="slide-title">Our Solution — Touchless 3D Interface</h2>
+    <div class="card-grid-3" style="flex:1; align-items:start; margin-top:8px;">
+        <div class="card">
+            <div class="icon-box"><i class="fa-solid fa-hand"></i></div>
+            <h3>3D Gesture Control</h3>
+            <p>An Orbbec depth camera tracks your hand in three dimensions (X, Y, Z) at 30 frames per second. Cursor moves exactly where you point.</p>
+        </div>
+        <div class="card">
+            <div class="icon-box"><i class="fa-solid fa-microphone"></i></div>
+            <h3>Offline Voice Commands</h3>
+            <p>Vosk speech engine listens for 37 exact phrases — completely offline. No internet required. No data sent to Google or any cloud service.</p>
+        </div>
+        <div class="card">
+            <div class="icon-box"><i class="fa-solid fa-fingerprint"></i></div>
+            <h3>3D Biometric Lock</h3>
+            <p>The system starts locked. Only drawing your unique 3D air-signature unlocks it. A flat photo or video cannot fool the system.</p>
+        </div>
+    </div>
+    <div class="card" style="margin-top:24px; padding:24px 32px; background:linear-gradient(135deg,#fef9f0,#fff); border-color:var(--gold-light);">
+        <p style="color:var(--text); font-size:17px;"><span class="accent">Core Design Goal:</span> Replace the mouse and keyboard entirely — no touch, no screen, no special room — just your hand and your voice.</p>
+    </div>
+    <div class="slide-num">3 / 12</div>
+</div>
+
+<!-- ═══ SLIDE 4: THE GOLDEN RULE ═══ -->
+<div class="slide">
+    <h2 class="slide-title">The Core Design Rule — Why Both?</h2>
+    <div class="grid-2" style="flex:1; gap:40px; align-items:start; margin-top:8px;">
+        <div class="card" style="height:100%; border-color:var(--gold-light); background:linear-gradient(160deg,#fffdf8,#fff);">
+            <div class="tag-row"><span class="badge badge-gold"><i class="fa-solid fa-camera" style="margin-right:6px;"></i> Camera — Spatial Actions</span></div>
+            <ul style="margin-top:16px;">
+                <li><strong>Cursor Movement:</strong> Real-time 30fps X/Y/Z tracking</li>
+                <li><strong>Scrolling:</strong> Swipe velocity = scroll speed naturally</li>
+                <li><strong>3D Signature:</strong> Only depth camera can capture 3D trajectory</li>
+                <li><strong>Dwell-Click:</strong> Hover 1.5s = auto-click, zero extra effort</li>
+            </ul>
+        </div>
+        <div class="card" style="height:100%; border-color:#c7d2fe; background:linear-gradient(160deg,#f8f9ff,#fff);">
+            <div class="tag-row"><span class="badge badge-blue"><i class="fa-solid fa-microphone" style="margin-right:6px;"></i> Voice — Named Actions</span></div>
+            <ul style="margin-top:16px;">
+                <li><strong>Text Input:</strong> "type hello" is 30x faster than air-keyboard</li>
+                <li><strong>Click:</strong> Air-push shakes cursor; voice keeps it perfectly still</li>
+                <li><strong>Mode Switch:</strong> "go to mouse" is instant vs multiple swipes</li>
+                <li><strong>Hands Free:</strong> Works even when hands are resting or dirty</li>
+            </ul>
+        </div>
+    </div>
+    <div class="card" style="margin-top:24px; padding:20px 32px; background:linear-gradient(135deg,#fef9f0,#fff); border-color:var(--gold-light);">
+        <p style="color:var(--text);"><span class="accent">The Rule:</span> Camera = continuous spatial data &nbsp;|&nbsp; Voice = discrete named commands. They never overlap.</p>
+    </div>
+    <div class="slide-num">4 / 12</div>
+</div>
+
+<!-- ═══ SLIDE 5: TECH STACK ═══ -->
+<div class="slide">
+    <h2 class="slide-title">Hardware & Technology Stack</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; flex:1; align-items:start; margin-top:8px;">
+        <div>
+            <p style="font-size:13px; text-transform:uppercase; letter-spacing:0.1em; color:var(--gold); font-weight:600; margin-bottom:16px;">Hardware</p>
+            <div class="card" style="margin-bottom:16px;">
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <div class="icon-box" style="margin:0; flex-shrink:0;"><i class="fa-solid fa-camera"></i></div>
+                    <div><h3 style="font-size:18px;">Orbbec Gemini 335</h3><p style="font-size:15px;">640x480 @ 30fps, Color + Depth + HW D2C alignment</p></div>
+                </div>
+            </div>
+            <div class="card">
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <div class="icon-box" style="margin:0; flex-shrink:0;"><i class="fa-solid fa-microphone"></i></div>
+                    <div><h3 style="font-size:18px;">PC Microphone</h3><p style="font-size:15px;">Any standard mic — 16kHz mono capture via PyAudio</p></div>
+                </div>
+            </div>
+        </div>
+        <div>
+            <p style="font-size:13px; text-transform:uppercase; letter-spacing:0.1em; color:var(--gold); font-weight:600; margin-bottom:16px;">Software Libraries</p>
+            <table>
+                <thead><tr><th>Library</th><th>Purpose</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>MediaPipe</strong></td><td>21-point hand landmark detection (Google)</td></tr>
+                    <tr><td><strong>Vosk</strong></td><td>100% offline speech recognition</td></tr>
+                    <tr><td><strong>FastDTW</strong></td><td>3D signature matching algorithm</td></tr>
+                    <tr><td><strong>PyQt6</strong></td><td>Transparent click-through HUD overlay</td></tr>
+                    <tr><td><strong>pyautogui</strong></td><td>OS-level mouse & keyboard simulation</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="slide-num">5 / 12</div>
+</div>
+
+<!-- ═══ SLIDE 6: ARCHITECTURE ═══ -->
+<div class="slide">
+    <h2 class="slide-title">System Architecture — 3 Threads</h2>
+    <div class="card-grid-3" style="margin-top:8px;">
+        <div class="card" style="border-color:var(--gold-light);">
+            <div class="badge badge-gold" style="margin-bottom:16px;">Thread 1</div>
+            <div class="icon-box"><i class="fa-solid fa-camera"></i></div>
+            <h3>Camera Pipeline</h3>
+            <ul style="margin-top:12px;">
+                <li style="font-size:15px;">Capture color + depth frames</li>
+                <li style="font-size:15px;">D2C alignment fuses streams</li>
+                <li style="font-size:15px;">MediaPipe detects 21 landmarks</li>
+                <li style="font-size:15px;">1€ Filter smooths X, Y, Z</li>
+                <li style="font-size:15px;">Hand identity reject teleports</li>
+            </ul>
+        </div>
+        <div class="card" style="border-color:#c7d2fe;">
+            <div class="badge badge-blue" style="margin-bottom:16px;">Thread 2</div>
+            <div class="icon-box"><i class="fa-solid fa-microphone-lines"></i></div>
+            <h3>Voice Engine</h3>
+            <ul style="margin-top:12px;">
+                <li style="font-size:15px;">PyAudio streams 16kHz mono</li>
+                <li style="font-size:15px;">Vosk KaldiRecognizer parses</li>
+                <li style="font-size:15px;">Exact-match against 37 commands</li>
+                <li style="font-size:15px;">0.5s cooldown rate-limiter</li>
+                <li style="font-size:15px;">Puts result in thread-safe queue</li>
+            </ul>
+        </div>
+        <div class="card" style="border-color:#bbf7d0;">
+            <div class="badge badge-green" style="margin-bottom:16px;">Main Thread</div>
+            <div class="icon-box"><i class="fa-solid fa-display"></i></div>
+            <h3>UI Loop (33ms)</h3>
+            <ul style="margin-top:12px;">
+                <li style="font-size:15px;">Reads latest frame via Lock</li>
+                <li style="font-size:15px;">Blocked during LOCKED state</li>
+                <li style="font-size:15px;">Routes gesture + voice commands</li>
+                <li style="font-size:15px;">Updates PyQt6 HUD overlay</li>
+                <li style="font-size:15px;">Sends actions to OS via pyautogui</li>
+            </ul>
+        </div>
+    </div>
+    <div class="card" style="margin-top:24px; padding:18px 32px; background:linear-gradient(135deg,#fef9f0,#fff); border-color:var(--gold-light);">
+        <p style="color:var(--text); font-size:16px;"><span class="accent">Thread Safety:</span> &nbsp;<code style="background:#f5f5f7; padding:2px 8px; border-radius:6px; font-size:14px;">threading.Lock</code> protects frame data &nbsp;|&nbsp; <code style="background:#f5f5f7; padding:2px 8px; border-radius:6px; font-size:14px;">queue.Queue</code> passes voice commands safely</p>
+    </div>
+    <div class="slide-num">6 / 12</div>
+</div>
+
+<!-- ═══ SLIDE 7: SECURITY ═══ -->
+<div class="slide">
+    <h2 class="slide-title">Security — 3D Biometric Air-Signature</h2>
+    <div class="grid-2" style="flex:1; gap:48px; align-items:start; margin-top:8px;">
+        <div>
+            <div class="badge badge-red" style="margin-bottom:20px;"><i class="fa-solid fa-lock" style="margin-right:6px;"></i> System Starts LOCKED</div>
+            <div class="timeline" style="flex-direction:column; margin-top:0; gap:0;">
+                <div style="display:flex; align-items:flex-start; gap:20px; margin-bottom:24px;">
+                    <div class="dot" style="flex-shrink:0; width:44px; height:44px; font-size:16px;">1</div>
+                    <div><h3 style="font-size:17px;">Air-Push to Start</h3><p style="font-size:15px;">Push your finger forward 5cm quickly. Recording begins.</p></div>
+                </div>
+                <div style="display:flex; align-items:flex-start; gap:20px; margin-bottom:24px;">
+                    <div class="dot" style="flex-shrink:0; width:44px; height:44px; font-size:16px;">2</div>
+                    <div><h3 style="font-size:17px;">Draw in 3D Space</h3><p style="font-size:15px;">Move your hand in your unique pattern for 3 seconds including Z-depth movement.</p></div>
+                </div>
+                <div style="display:flex; align-items:flex-start; gap:20px; margin-bottom:24px;">
+                    <div class="dot" style="flex-shrink:0; width:44px; height:44px; font-size:16px;">3</div>
+                    <div><h3 style="font-size:17px;">DTW Verification</h3><p style="font-size:15px;">FastDTW compares shape against reference. Works even if drawn faster or slower.</p></div>
+                </div>
+                <div style="display:flex; align-items:flex-start; gap:20px;">
+                    <div class="dot" style="flex-shrink:0; width:44px; height:44px; font-size:16px; background:var(--gold); color:#fff;">✓</div>
+                    <div><h3 style="font-size:17px; color:var(--gold);">Unlocked!</h3><p style="font-size:15px;">System transitions to HOME menu. All modes become available.</p></div>
+                </div>
+            </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:20px;">
+            <div class="card" style="border-color:var(--gold-light); background:linear-gradient(135deg,#fef9f0,#fff);">
+                <div class="icon-box" style="margin-bottom:14px;"><i class="fa-solid fa-shield-halved"></i></div>
+                <h3 style="font-size:18px;">Anti-Spoofing: Z-Variance Check</h3>
+                <p style="font-size:15px;">The system requires a minimum Z-variance of <span class="accent">100 mm²</span>. A flat 2D gesture, a photo, or a video replay is automatically rejected because it has no real depth variation.</p>
+            </div>
+            <div class="card" style="border-color:#fecaca; background:#fff9f9;">
+                <div class="icon-box" style="margin-bottom:14px;"><i class="fa-solid fa-microphone-slash"></i></div>
+                <h3 style="font-size:18px;">Voice Blocked While Locked</h3>
+                <p style="font-size:15px;">All 37 voice commands are silently drained when the system is locked. No one can say <span class="accent">"unlock system"</span> to bypass security — only the physical 3D signature works.</p>
+            </div>
+        </div>
+    </div>
+    <div class="slide-num">7 / 12</div>
+</div>
+
+<!-- ═══ SLIDE 8: ALGORITHMS ═══ -->
+<div class="slide">
+    <h2 class="slide-title">Advanced Algorithms — Smart, Fast & Stable</h2>
+    <div class="card-grid-3" style="margin-top:8px; flex:1; align-items:start;">
+        <div class="card" style="border-color:var(--gold-light);">
+            <div class="icon-box"><i class="fa-solid fa-gauge-high"></i></div>
+            <h3>Z-Gain Cursor Scaling</h3>
+            <p style="font-size:15px; margin-bottom:14px;">Cursor speed adapts to your distance from the camera.</p>
+            <table style="font-size:14px;">
+                <thead><tr><th style="padding:10px 14px;">Distance</th><th style="padding:10px 14px;">Speed</th></tr></thead>
+                <tbody>
+                    <tr><td style="padding:10px 14px;">30 cm (close)</td><td style="padding:10px 14px;"><span class="accent">0.7× — Slow, precise</span></td></tr>
+                    <tr><td style="padding:10px 14px;">50 cm (desk)</td><td style="padding:10px 14px;">1.0× — Normal</td></tr>
+                    <tr><td style="padding:10px 14px;">150 cm (far)</td><td style="padding:10px 14px;"><span class="accent">2.0× — Fast, wide</span></td></tr>
+                </tbody>
+            </table>
+            <p style="font-size:13px; margin-top:12px; color:#aaa;">Formula: gain = (z / 500mm)^0.6</p>
+        </div>
+        <div class="card" style="border-color:#c7d2fe;">
+            <div class="icon-box"><i class="fa-solid fa-wave-square"></i></div>
+            <h3>1 Euro Filter (Smoothing)</h3>
+            <p style="font-size:15px; margin-bottom:14px;">A speed-adaptive mathematical filter — the smartest cursor smoother available.</p>
+            <div style="background:#f5f5f7; border-radius:16px; padding:20px; margin-bottom:12px;">
+                <p style="font-size:15px; font-weight:600; color:var(--text);">✋ Hand is STILL</p>
+                <p style="font-size:14px;">Maximum smoothing applied → zero jitter on screen</p>
+            </div>
+            <div style="background:#f5f5f7; border-radius:16px; padding:20px;">
+                <p style="font-size:15px; font-weight:600; color:var(--text);">✋ Hand MOVING FAST</p>
+                <p style="font-size:14px;">Smoothing removed instantly → zero lag, follows perfectly</p>
+            </div>
+        </div>
+        <div class="card" style="border-color:#bbf7d0;">
+            <div class="icon-box"><i class="fa-solid fa-user-shield"></i></div>
+            <h3>Hand Identity Tracking</h3>
+            <p style="font-size:15px; margin-bottom:14px;">Prevents the cursor from "teleporting" if a second person enters the camera view.</p>
+            <div style="background:#f0fdf4; border-radius:16px; padding:20px; margin-bottom:12px;">
+                <p style="font-size:14px; font-weight:600; color:#166534;">Physics Fact</p>
+                <p style="font-size:14px;">A real wrist <strong>cannot</strong> move more than 200 pixels in 33ms — that requires 6 m/s.</p>
+            </div>
+            <p style="font-size:14px;">If wrist jump &gt; <span class="accent">200px/frame</span> → rejected as a different hand. Previous safe position is kept.</p>
+        </div>
+    </div>
+    <div class="slide-num">8 / 12</div>
+</div>
+
+<!-- ═══ SLIDE 9: MODES & COMMANDS ═══ -->
+<div class="slide">
+    <h2 class="slide-title">Control Modes & Voice Commands</h2>
+    <div style="display:grid; grid-template-columns:1.1fr 0.9fr; gap:32px; flex:1; align-items:start; margin-top:8px;">
+        <div>
+            <p style="font-size:13px; text-transform:uppercase; letter-spacing:0.1em; color:var(--gold); font-weight:600; margin-bottom:14px;">5 Operational Modes (Camera)</p>
+            <table>
+                <thead><tr><th>Mode</th><th>Key Gestures</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>🔒 Locked</strong></td><td>Air-Push → draw 3D signature</td></tr>
+                    <tr><td><strong>🏠 Home</strong></td><td>Point + Air-Push or Dwell 1.5s on buttons</td></tr>
+                    <tr><td><strong>🖱️ Mouse</strong></td><td>Move hand → cursor; Air-Push → click</td></tr>
+                    <tr><td><strong>🎵 Media</strong></td><td>Open Palm = Play; Swipe Up/Down = Volume</td></tr>
+                    <tr><td><strong>🪟 Window/Tab</strong></td><td>Swipe Right/Left to switch apps or tabs</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div>
+            <p style="font-size:13px; text-transform:uppercase; letter-spacing:0.1em; color:var(--gold); font-weight:600; margin-bottom:14px;">Voice Commands (37 total)</p>
+            <ul>
+                <li style="font-size:15px;"><span class="accent">"go to mouse"</span> — Switch to Mouse Mode</li>
+                <li style="font-size:15px;"><span class="accent">"click"</span> — Left-click at cursor position</li>
+                <li style="font-size:15px;"><span class="accent">"type hello world"</span> — Types anywhere on screen</li>
+                <li style="font-size:15px;"><span class="accent">"play music"</span> — Toggle play/pause</li>
+                <li style="font-size:15px;"><span class="accent">"minimize window"</span> — Win+Down</li>
+                <li style="font-size:15px;"><span class="accent">"take screenshot"</span> — Win+PrintScreen</li>
+                <li style="font-size:15px;"><span class="accent">"lock system"</span> — Re-lock, require signature</li>
+            </ul>
+            <div class="card" style="margin-top:16px; padding:16px 20px; border-color:var(--gold-light); background:linear-gradient(135deg,#fef9f0,#fff);">
+                <p style="font-size:14px; color:var(--text);"><span class="accent">Safety Rule:</span> Exact multi-word match only. No fuzzy matching — prevents false triggers from background speech.</p>
+            </div>
+        </div>
+    </div>
+    <div class="slide-num">9 / 12</div>
+</div>
+
+<!-- ═══ SLIDE 10: PRIVACY & EFFICIENCY ═══ -->
+<div class="slide">
+    <h2 class="slide-title">100% Offline — Privacy & Performance</h2>
+    <div class="grid-2" style="flex:1; gap:48px; align-items:center; margin-top:8px;">
+        <div style="display:flex; flex-direction:column; gap:20px;">
+            <div class="card" style="border-color:var(--gold-light); background:linear-gradient(135deg,#fef9f0,#fff);">
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <div class="icon-box" style="margin:0; flex-shrink:0;"><i class="fa-solid fa-wifi-slash"></i></div>
+                    <div><h3 style="font-size:18px;">Zero Internet Dependency</h3><p style="font-size:15px;">No audio, video, or hand data is ever sent to any server. Vosk STT and MediaPipe both run locally on your CPU.</p></div>
+                </div>
+            </div>
+            <div class="card" style="border-color:#bbf7d0;">
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <div class="icon-box" style="margin:0; flex-shrink:0;"><i class="fa-solid fa-microchip"></i></div>
+                    <div><h3 style="font-size:18px;">No GPU Required</h3><p style="font-size:15px;">MediaPipe uses TensorFlow Lite — optimized for CPU. Works on any standard laptop or desktop without an expensive graphics card.</p></div>
+                </div>
+            </div>
+            <div class="card" style="border-color:#c7d2fe;">
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <div class="icon-box" style="margin:0; flex-shrink:0;"><i class="fa-solid fa-clock"></i></div>
+                    <div><h3 style="font-size:18px;">Low Latency</h3><p style="font-size:15px;">Voice recognition: ~200ms. Gesture response: ~33ms (30fps camera). No network round-trip delays.</p></div>
+                </div>
+            </div>
+        </div>
+        <div style="background:#fbfbfd; border-radius:28px; border:1px solid var(--border); padding:40px; display:flex; flex-direction:column; gap:28px;">
+            <h3 style="font-size:20px; text-align:center;">Comparison</h3>
+            <table>
+                <thead><tr><th>Feature</th><th style="color:var(--gold);">Ours</th><th>Cloud STT</th></tr></thead>
+                <tbody>
+                    <tr><td>Internet needed?</td><td style="color:#16a34a; font-weight:600;">No ✓</td><td style="color:#dc2626;">Yes ✗</td></tr>
+                    <tr><td>Data privacy</td><td style="color:#16a34a; font-weight:600;">100% ✓</td><td style="color:#dc2626;">Risk ✗</td></tr>
+                    <tr><td>Works offline?</td><td style="color:#16a34a; font-weight:600;">Yes ✓</td><td style="color:#dc2626;">No ✗</td></tr>
+                    <tr><td>Latency</td><td style="color:#16a34a; font-weight:600;">~200ms ✓</td><td style="color:#dc2626;">&gt;500ms ✗</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="slide-num">10 / 12</div>
+</div>
+
+<!-- ═══ SLIDE 11: APPLICATIONS ═══ -->
+<div class="slide">
+    <h2 class="slide-title">Real-World Applications</h2>
+    <div class="card-grid-3" style="margin-top:8px; margin-bottom:24px;">
+        <div class="card" style="border-color:var(--gold-light);">
+            <div class="icon-box"><i class="fa-solid fa-hospital"></i></div>
+            <h3>Medical & Surgery</h3>
+            <p style="font-size:15px;">Surgeons navigate MRI/CT scans, patient records, and operating room displays — without breaking sterility by touching a mouse or keyboard.</p>
+            <div class="badge badge-gold" style="margin-top:16px;">Primary Use Case</div>
+        </div>
+        <div class="card" style="border-color:#c7d2fe;">
+            <div class="icon-box"><i class="fa-solid fa-industry"></i></div>
+            <h3>Industrial & Factory</h3>
+            <p style="font-size:15px;">Workers wearing heavy, greasy, or chemical-resistant gloves can control machinery dashboards and interface panels using only gestures and speech.</p>
+            <div class="badge badge-blue" style="margin-top:16px;">Hands-Free Control</div>
+        </div>
+        <div class="card" style="border-color:#bbf7d0;">
+            <div class="icon-box"><i class="fa-solid fa-universal-access"></i></div>
+            <h3>Accessibility</h3>
+            <p style="font-size:15px;">Users with limited fine-motor skills who cannot easily grip a physical mouse or type on a keyboard can control their entire PC by pointing and speaking.</p>
+            <div class="badge badge-green" style="margin-top:16px;">Inclusive Design</div>
+        </div>
+    </div>
+    <div class="card-grid-2">
+        <div class="card" style="padding:24px 28px;">
+            <div style="display:flex; align-items:center; gap:14px;">
+                <div class="icon-box" style="margin:0;"><i class="fa-solid fa-store"></i></div>
+                <div><h3 style="font-size:17px;">Public Kiosks</h3><p style="font-size:14px;">ATMs, ticketing machines, and info-screens where touching a shared surface spreads germs.</p></div>
+            </div>
+        </div>
+        <div class="card" style="padding:24px 28px;">
+            <div style="display:flex; align-items:center; gap:14px;">
+                <div class="icon-box" style="margin:0;"><i class="fa-solid fa-chalkboard-user"></i></div>
+                <div><h3 style="font-size:17px;">Smart Classrooms</h3><p style="font-size:14px;">Professors control presentations from anywhere in the room without a pointer or clicker.</p></div>
+            </div>
+        </div>
+    </div>
+    <div class="slide-num">11 / 12</div>
+</div>
+
+<!-- ═══ SLIDE 12: CONCLUSION ═══ -->
+<div class="slide">
+    <div class="hero">
+        <div class="badge badge-gold" style="font-size:14px; padding:8px 20px; margin-bottom:28px;">Project Summary</div>
+        <h1 style="font-size:64px;">Thank You</h1>
+        <p style="font-size:22px; margin-top:16px; max-width:800px; color:var(--sub);">Touchless 3D Interface successfully solves the limitations of physical and gesture-only systems by combining 3D spatial tracking with surgical offline voice commands.</p>
+        <div class="card-grid-3" style="margin-top:48px; width:100%;">
+            <div class="card" style="padding:28px; border-color:var(--gold-light); text-align:center;">
+                <div style="font-size:36px; font-weight:700; background:linear-gradient(135deg,#1d1d1f,#b4915f); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">37</div>
+                <p style="font-size:15px; margin-top:6px;">Voice Commands<br>All Offline</p>
+            </div>
+            <div class="card" style="padding:28px; border-color:var(--gold-light); text-align:center;">
+                <div style="font-size:36px; font-weight:700; background:linear-gradient(135deg,#1d1d1f,#b4915f); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">3</div>
+                <p style="font-size:15px; margin-top:6px;">Background Threads<br>Zero UI Blocking</p>
+            </div>
+            <div class="card" style="padding:28px; border-color:var(--gold-light); text-align:center;">
+                <div style="font-size:36px; font-weight:700; background:linear-gradient(135deg,#1d1d1f,#b4915f); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">0</div>
+                <p style="font-size:15px; margin-top:6px;">Cloud Dependencies<br>100% Private</p>
+            </div>
+        </div>
+        <p style="margin-top:40px; font-size:20px; color:var(--gold); font-weight:600;">Open for Questions</p>
+    </div>
+    <div class="slide-num">12 / 12</div>
+</div>
+
+</body>
+</html>
