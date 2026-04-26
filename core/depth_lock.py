@@ -64,30 +64,40 @@ class DepthLock:
         self.landmarker = vision.HandLandmarker.create_from_options(options)
         self._frame_ts = 0  # monotonic timestamp for VIDEO mode
 
-        # --- EMA smoothing state ----------------------------------------
-        self.prev_x = 0
-        self.prev_y = 0
-        self.prev_z = 450.0   # init to 45 cm midpoint
+        # --- 1 Euro Filters for dynamic smoothing -----------------------
+        from utils.one_euro_filter import OneEuroFilter
+        self.filter_nx = OneEuroFilter(mincutoff=0.1, beta=0.7)
+        self.filter_ny = OneEuroFilter(mincutoff=0.1, beta=0.7)
+        self.filter_z  = OneEuroFilter(mincutoff=1.0, beta=0.1)
 
-        # --- Extra cursor smoothing for mouse control -------------------
-        self.prev_norm_x = 0.5
-        self.prev_norm_y = 0.5
-        self.CURSOR_SMOOTH = 0.25  # higher = smoother, lower = faster. 0.25 = 1.5x faster
+        # --- Hand identity tracking (reject teleports) -----------------
+        self._prev_wrist = None      # (x_px, y_px) of wrist last frame
+        self._prev_hand_data = None  # last valid hand_data for fallback
 
     # ------------------------------------------------------------------
-    _PATCH = 7   # 15×15 neighbourhood for depth median
+    def _dynamic_patch(self, z_mm):
+        """
+        Scale depth sampling patch based on distance.
+        Close (30cm) → fingertip is ~40px wide → large patch (7) is fine.
+        Far (150cm)  → fingertip is ~8px wide → large patch captures background.
+        """
+        if z_mm < 100:
+            return 7  # default if no valid depth
+        base = int(7 * (500.0 / max(z_mm, 200)))
+        return max(2, min(12, base))
 
-    def _lookup_depth(self, depth_data, norm_x, norm_y):
+    def _lookup_depth(self, depth_data, norm_x, norm_y, z_hint=None):
         """
         Depth-Lock core — Gemini 335 stereo-aware:
-        Sample a 15×15 neighbourhood and take the MEDIAN of valid (>50 mm) pixels.
+        Sample a dynamically-sized neighbourhood and take the MEDIAN
+        of valid (>50 mm) pixels. Patch size adapts to hand distance.
         """
         if depth_data is None:
             return 0.0
         dh, dw = depth_data.shape
         cx = int(norm_x * dw)
         cy = int(norm_y * dh)
-        p  = self._PATCH
+        p  = self._dynamic_patch(z_hint if z_hint else 500)
         x0 = max(0, cx - p);  x1 = min(dw, cx + p + 1)
         y0 = max(0, cy - p);  y1 = min(dh, cy + p + 1)
         patch = depth_data[y0:y1, x0:x1]
@@ -125,35 +135,40 @@ class DepthLock:
         thm_lm = landmarks[_THUMB_TIP]
         wst_lm = landmarks[_WRIST]
 
+        # --- Hand identity tracking: reject teleports ──────────────
+        wrist_px = (int(wst_lm.x * ir_w), int(wst_lm.y * ir_h))
+        if self._prev_wrist is not None:
+            dx = wrist_px[0] - self._prev_wrist[0]
+            dy = wrist_px[1] - self._prev_wrist[1]
+            jump = (dx*dx + dy*dy) ** 0.5
+            if jump > Config.HAND_JUMP_THRESHOLD:
+                # This is a different hand (someone walked by) — reject
+                return self._prev_hand_data
+        self._prev_wrist = wrist_px
+
         # --- Depth-Lock: normalised → depth-map pixel → mm --------
-        raw_z = self._lookup_depth(depth_data, idx_lm.x, idx_lm.y)
+        # Use previous Z as hint for dynamic patch sizing
+        z_hint = self.filter_z.x_prev if self.filter_z.x_prev else 500
+        raw_z = self._lookup_depth(depth_data, idx_lm.x, idx_lm.y, z_hint=z_hint)
 
-        # --- EMA smoothing (position + depth) ----------------------
-        raw_x = idx_lm.x * ir_w
-        raw_y = idx_lm.y * ir_h
-        a = Config.SMOOTHING_FACTOR
-        sx = int(a * self.prev_x + (1 - a) * raw_x)
-        sy = int(a * self.prev_y + (1 - a) * raw_y)
-
-        if raw_z > 50:
-            sz = a * self.prev_z + (1 - a) * raw_z
-            self.prev_z = max(sz, 50.0)
-        else:
-            sz = self.prev_z
-
-        sx_clamped = max(0, min(sx, ir_w - 1))
-        sy_clamped = max(0, min(sy, ir_h - 1))
-        self.prev_x, self.prev_y = sx_clamped, sy_clamped
-        sx, sy = sx_clamped, sy_clamped
-
-        # --- Extra cursor smoothing for normalized coords -----------
-        cs = self.CURSOR_SMOOTH
+        # --- 1 Euro Filter smoothing --------------------------------
         # Flip X-axis: hand right → cursor right (mirror effect)
         flipped_x = 1.0 - idx_lm.x
-        smooth_nx = cs * self.prev_norm_x + (1 - cs) * flipped_x
-        smooth_ny = cs * self.prev_norm_y + (1 - cs) * idx_lm.y
-        self.prev_norm_x = smooth_nx
-        self.prev_norm_y = smooth_ny
+        smooth_nx = self.filter_nx(flipped_x)
+        smooth_ny = self.filter_ny(idx_lm.y)
+        
+        sx = int((1.0 - smooth_nx) * ir_w)
+        sy = int(smooth_ny * ir_h)
+        
+        sx = max(0, min(sx, ir_w - 1))
+        sy = max(0, min(sy, ir_h - 1))
+
+        if raw_z > 50:
+            sz = self.filter_z(raw_z)
+        else:
+            sz = self.filter_z(self.filter_z.x_prev if self.filter_z.x_prev is not None else 450.0)
+        
+        sz = max(sz, 50.0)
 
         hand_data = {
             'index_tip': {
@@ -167,12 +182,12 @@ class DepthLock:
             'thumb_tip': {
                 'x': int(thm_lm.x * ir_w),
                 'y': int(thm_lm.y * ir_h),
-                'z': self._lookup_depth(depth_data, thm_lm.x, thm_lm.y),
+                'z': self._lookup_depth(depth_data, thm_lm.x, thm_lm.y, z_hint=z_hint),
             },
             'wrist': {
-                'x': int(wst_lm.x * ir_w),
-                'y': int(wst_lm.y * ir_h),
-                'z': self._lookup_depth(depth_data, wst_lm.x, wst_lm.y),
+                'x': wrist_px[0],
+                'y': wrist_px[1],
+                'z': self._lookup_depth(depth_data, wst_lm.x, wst_lm.y, z_hint=z_hint),
             },
             'landmarks_list': landmarks,   # list of NormalizedLandmark
             'frame_width': ir_w,

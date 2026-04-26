@@ -1,0 +1,295 @@
+@startuml
+' This file contains all major UML diagrams for the Aether-Link project, written in PlantUML syntax.
+' You can view this file using a PlantUML viewer or VS Code extension.
+
+' =================================================================
+' 1. Class Diagram
+' =================================================================
+
+skinparam classAttributeIconSize 0
+
+title Class Diagram
+
+class AetherLink {
+  +run()
+  -app
+  -pipeline
+  -depth_lock
+  -gesture_detector
+  -state_machine
+  -hud
+  -menu_renderer
+  -media_mode
+  -mouse_mode
+  -tab_mode
+  -window_mode
+  -keyboard_mode
+  -sig_verifier
+  -handle_home_mode()
+  -handle_media_mode()
+  -handle_mouse_mode()
+  -handle_tab_mode()
+  -handle_window_mode()
+  -handle_keyboard_overlay()
+  -update_hud()
+}
+
+class DepthLock {
+  +process_frames()
+  +get_hand_data()
+  -ema_depth
+  -ema_norm_x
+  -ema_norm_y
+}
+
+class GestureDetector {
+  +detect_air_push()
+  +detect_pinch()
+  +detect_peace_sign()
+  +detect_open_palm()
+  +detect_swipe_up()
+  +detect_swipe_down()
+  +detect_swipe_left()
+  +detect_swipe_right()
+}
+
+class StateMachine {
+  +current_state
+  +go_to_home()
+  +go_to_mouse()
+  +toggle_keyboard_overlay()
+  +has_keyboard_overlay
+}
+
+class HUDOverlay {
+  +set_state_text()
+  +set_info_text()
+  +set_buttons()
+  +set_cursor_position()
+  +flash_click()
+}
+
+class MenuRenderer {
+  +get_home_menu_buttons()
+  +get_media_menu_buttons()
+  +get_tab_menu_buttons()
+  +get_window_menu_buttons()
+  +check_button_hover()
+}
+
+class SignatureVerifier {
+  +verify()
+  -reference_signature
+  -dtw_threshold
+}
+
+abstract class ModeBase
+class MediaMode
+class MouseMode
+class TabMode
+class WindowMode
+class KeyboardMode
+
+AetherLink o-- DepthLock : uses
+AetherLink o-- GestureDetector : uses
+AetherLink o-- StateMachine : uses
+AetherLink o-- HUDOverlay : uses
+AetherLink o-- MenuRenderer : uses
+AetherLink o-- SignatureVerifier : uses
+
+AetherLink o-- MediaMode : uses
+AetherLink o-- MouseMode : uses
+AetherLink o-- TabMode : uses
+AetherLink o-- WindowMode : uses
+AetherLink o-- KeyboardMode : uses
+
+ModeBase <|-- MediaMode
+ModeBase <|-- MouseMode
+ModeBase <|-- TabMode
+ModeBase <|-- WindowMode
+ModeBase <|-- KeyboardMode
+
+HUDOverlay ..> MenuRenderer : uses
+AetherLink ..> DepthLock : gets hand data
+AetherLink ..> GestureDetector : detects gestures
+
+' =================================================================
+' 2. Use Case Diagram
+' =================================================================
+
+newpage
+
+title Use Case Diagram
+
+left to right direction
+actor User
+
+rectangle "Aether-Link System" {
+  usecase "Control Mouse Cursor" as UC1
+  usecase "Perform Left Click" as UC2
+  usecase "Switch Modes" as UC3
+  usecase "Control Media Playback" as UC4
+  usecase "Manage Browser Tabs" as UC5
+  usecase "Manage App Windows" as UC6
+  usecase "Toggle Virtual Keyboard" as UC7
+  usecase "Type on Keyboard" as UC8
+  usecase "Take Screenshot" as UC9
+  usecase "Unlock System via Signature" as UC10
+}
+
+User --> UC1
+User --> UC2
+User --> UC3
+User --> UC4
+User --> UC5
+User --> UC6
+User --> UC7
+User --> UC8
+User --> UC9
+User --> UC10
+
+UC7 ..> UC8 : <<includes>>
+UC3 ..> UC1 : <<extends>>
+UC3 ..> UC4 : <<extends>>
+UC3 ..> UC5 : <<extends>>
+UC3 ..> UC6 : <<extends>>
+
+' =================================================================
+' 3. Sequence Diagram: Toggling the Keyboard
+' =================================================================
+
+newpage
+
+title Sequence Diagram: Toggling the Keyboard
+
+actor User
+participant AetherLink
+participant GestureDetector
+participant StateMachine
+participant HUDOverlay
+
+User->AetherLink: Performs Pinch Gesture
+activate AetherLink
+
+AetherLink->GestureDetector: detect_pinch(hand_data)
+activate GestureDetector
+GestureDetector-->>AetherLink: returns true
+deactivate GestureDetector
+
+AetherLink->StateMachine: toggle_keyboard_overlay()
+activate StateMachine
+StateMachine->StateMachine: keyboard_overlay = not keyboard_overlay
+StateMachine-->>AetherLink
+deactivate StateMachine
+
+AetherLink->HUDOverlay: update_hud()
+activate HUDOverlay
+alt Keyboard is now ON
+    HUDOverlay->AetherLink: Renders keyboard buttons
+else Keyboard is now OFF
+    HUDOverlay->AetherLink: Renders mode buttons
+end
+deactivate HUDOverlay
+
+AetherLink-->>User: Display is updated
+deactivate AetherLink
+
+' =================================================================
+' 4. Activity Diagram: Main Application Loop
+' =================================================================
+
+newpage
+
+title Activity Diagram: Main Application Loop
+
+start
+:Initialize Hardware & UI;
+if (System Locked?) then (Yes)
+  repeat
+    :Handle Lock Mode;
+  repeat while (Unlock Successful?) is (No)
+  :Enter HOME Mode;
+else (No)
+  :Enter HOME Mode;
+endif
+
+repeat
+  :Process Camera Frames & Detect Hand;
+  if (Hand Detected?) then (Yes)
+    :Detect Gestures (Push, Pinch, Swipe);
+    switch (Current State?)
+    case (HOME)
+      :Handle Home Mode Logic;
+    case (MOUSE)
+      :Handle Mouse Mode Logic;
+    case (MEDIA)
+      :Handle Media Mode Logic;
+    case (TAB)
+      :Handle Tab Mode Logic;
+    case (WINDOW)
+      :Handle Window Mode Logic;
+    endswitch
+    
+    :Update HUD;
+    if (Keyboard Overlay Active?) then (Yes)
+      :Handle Keyboard Input;
+      :Update HUD with Keyboard;
+    endif
+  endif
+repeat while (Running?)
+
+stop
+
+' =================================================================
+' 5. Component Diagram
+' =================================================================
+
+newpage
+
+title Component Diagram
+
+package "User Interface" {
+  [ui.hud_overlay_premium] as HUD
+  [ui.menu_renderer] as Menu
+}
+
+package "Core Logic" {
+  [main.AetherLink] as Main
+  [core.state_machine] as State
+  [core.gesture_detector] as Gesture
+}
+
+package "Hardware Abstraction" {
+  [core.depth_lock] as DepthLock
+  [pyorbbecsdk] as SDK
+}
+
+package "Modes" {
+  [modes.mouse_mode] as MouseMode
+  [modes.media_mode] as MediaMode
+  [modes.tab_mode] as TabMode
+  [modes.window_mode] as WindowMode
+}
+
+package "Security" {
+  [security.signature_verifier] as Verifier
+  [security.signature_recorder] as Recorder
+}
+
+Main --> State
+Main --> Gesture
+Main --> DepthLock
+Main --> HUD
+Main --> Menu
+Main --> MouseMode
+Main --> MediaMode
+Main --> TabMode
+Main --> WindowMode
+Main --> Verifier
+Main --> Recorder
+
+Gesture --> DepthLock
+DepthLock --> SDK
+HUD --> Menu
+
+@enduml

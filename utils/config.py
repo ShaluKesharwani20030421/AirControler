@@ -25,3 +25,16 @@ class Config:
     VOLUME_STEP = 2
 
     FPS_TARGET = 30
+
+    # ── Z-Based Dynamic Cursor Gain (C-D Gain) ────────────────────
+    # Cursor speed adapts to hand distance from camera:
+    #   Close (30cm) → precise, slow cursor for small targets
+    #   Far (1.5m+)  → fast cursor, small wrist flick = full screen
+    Z_GAIN_REF_DISTANCE = 500.0   # mm — "ideal" desk distance (50cm)
+    Z_GAIN_POWER        = 0.6     # Sub-linear scaling exponent
+    Z_GAIN_MIN           = 0.7    # Floor — never slower than 70%
+    Z_GAIN_MAX           = 2.5    # Cap — never faster than 250%
+
+    # ── Hand Identity Tracking ────────────────────────────────────
+    # Max pixel jump between frames before rejecting as a different hand
+    HAND_JUMP_THRESHOLD  = 200    # pixels — impossibly fast for same hand

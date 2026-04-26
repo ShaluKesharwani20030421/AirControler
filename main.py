@@ -18,9 +18,11 @@ from modes.mouse_mode import MouseMode
 from modes.keyboard_mode import KeyboardMode
 from modes.tab_mode import TabMode
 from modes.window_mode import WindowMode
+from voice.voice_engine import VoiceEngine
 from utils.camera_utils import process_depth_frame, process_ir_frame, process_color_frame
 import os
 import time
+import threading
 import pyautogui
 from utils.config import Config as AppConfig
 from security.signature_recorder import SignatureRecorder
@@ -84,15 +86,30 @@ class AetherLink:
         self.tab_mode      = TabMode()
         self.window_mode   = WindowMode()
 
+        # ── Voice Engine (surgical voice commands) ─────────────────
+        self.voice_engine = VoiceEngine()
+        if self.voice_engine.available:
+            self.voice_engine.start()
+            print("[Voice] Voice engine active — say 'click', 'type ...', 'go home', etc.")
+        else:
+            print("[Voice] Voice unavailable — gesture-only mode (all features still work)")
+
         self.current_hand_data = None
         self.prev_hand_data    = None
         self.running = False
+        
+        self.latest_frame_data = None
+        self.frame_lock = threading.Lock()
 
         self.init_camera()
 
         self.timer = QTimer()
-        self.timer.timeout.connect(self.process_frame)
-        self.timer.start(33)   # ~30 FPS
+        self.timer.timeout.connect(self.update_ui)
+        self.timer.start(33)   # ~30 FPS strictly for UI
+        
+        self.capture_thread = threading.Thread(target=self.capture_loop, daemon=True)
+        if self.running:
+            self.capture_thread.start()
 
     # ------------------------------------------------------------------
     def init_camera(self):
@@ -204,56 +221,88 @@ class AetherLink:
             return False
 
     # ------------------------------------------------------------------
-    def process_frame(self):
-        if not self.running or self.pipeline is None:
+    def capture_loop(self):
+        """Runs in background thread to unblock main UI thread."""
+        while self.running:
+            if self.pipeline is None:
+                time.sleep(0.1)
+                continue
+            try:
+                frames = self.pipeline.wait_for_frames(100)
+                if frames is None:
+                    continue
+
+                depth_frame = frames.get_depth_frame()
+                track_frame = None
+                if self.use_color_cam:
+                    color_raw = frames.get_frame(OBFrameType.COLOR_FRAME)
+                    track_frame = process_color_frame(color_raw)
+                if track_frame is None:
+                    ir_raw = frames.get_frame(self.ir_ftype)
+                    track_frame = process_ir_frame(ir_raw)
+
+                if depth_frame is None or track_frame is None:
+                    continue
+
+                depth_colormap, depth_data = process_depth_frame(
+                    depth_frame, AppConfig.DEPTH_MIN, AppConfig.DEPTH_MAX
+                )
+                if depth_data is None:
+                    continue
+
+                hand_data = self.depth_lock.process_frame(track_frame, depth_data)
+                
+                with self.frame_lock:
+                    self.latest_frame_data = (track_frame, depth_colormap, hand_data)
+
+            except Exception as e:
+                import traceback
+                print(f"[WARN ] Capture error: {e}")
+                traceback.print_exc()
+
+    def update_ui(self):
+        """Runs in main UI thread."""
+        if not self.running:
             return
-        try:
-            frames = self.pipeline.wait_for_frames(100)
-            if frames is None:
+            
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            self.cleanup()
+            return
+            
+        with self.frame_lock:
+            if not self.latest_frame_data:
                 return
+            track_frame, depth_colormap, hand_data = self.latest_frame_data
+            self.latest_frame_data = None  # consume it
 
-            depth_frame = frames.get_depth_frame()
-            # ── Get tracking frame (color preferred, IR fallback) ─────
-            track_frame = None
-            if self.use_color_cam:
-                color_raw = frames.get_frame(OBFrameType.COLOR_FRAME)
-                track_frame = process_color_frame(color_raw)
-            if track_frame is None:
-                ir_raw = frames.get_frame(self.ir_ftype)
-                track_frame = process_ir_frame(ir_raw)
+        self.prev_hand_data    = self.current_hand_data
+        self.current_hand_data = hand_data
 
-            if depth_frame is None or track_frame is None:
-                return
+        # ── Check voice commands (non-blocking) ──────────────────
+        # IMPORTANT: Voice is BLOCKED when LOCKED.
+        # Only the 3D air-signature can unlock the system — voice cannot bypass it.
+        if not self.state_machine.is_locked():
+            voice_cmd = self.voice_engine.get_command()
+            if voice_cmd:
+                self.handle_voice_command(voice_cmd)
+        else:
+            # Drain the queue silently so commands don't queue up during lock
+            self.voice_engine.get_command()
 
-            depth_colormap, depth_data = process_depth_frame(
-                depth_frame, AppConfig.DEPTH_MIN, AppConfig.DEPTH_MAX
-            )
-            if depth_data is None:
-                return
+        self.handle_gestures()
+        self.update_hud()
 
-            self.prev_hand_data    = self.current_hand_data
-            self.current_hand_data = self.depth_lock.process_frame(track_frame, depth_data)
+        debug_frame = track_frame.copy()
+        if self.current_hand_data:
+            debug_frame = self.depth_lock.draw_hand_landmarks(debug_frame, self.current_hand_data)
+        src = "Color" if self.use_color_cam else "IR"
+        cv2.putText(debug_frame,
+                    f"[{src}] {self.state_machine.get_state_name()}",
+                    (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
 
-            self.handle_gestures()
-            self.update_hud()
-
-            debug_frame = track_frame.copy()
-            if self.current_hand_data:
-                debug_frame = self.depth_lock.draw_hand_landmarks(debug_frame, self.current_hand_data)
-            src = "Color" if self.use_color_cam else "IR"
-            cv2.putText(debug_frame,
-                        f"[{src}] {self.state_machine.get_state_name()}",
-                        (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
-
-            cv2.imshow("Aether-Link  [Hand Tracking]", debug_frame)
-            if depth_colormap is not None:
-                cv2.imshow("Aether-Link  [Depth Map]", depth_colormap)
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                self.cleanup()
-
-        except Exception as e:
-            print(f"[WARN ] Frame error: {e}")
+        cv2.imshow("Aether-Link  [Hand Tracking]", debug_frame)
+        if depth_colormap is not None:
+            cv2.imshow("Aether-Link  [Depth Map]", depth_colormap)
     
     def handle_gestures(self):
         if self.current_hand_data is None:
@@ -281,26 +330,58 @@ class AetherLink:
         elif self.state_machine.is_window():
             self.handle_window_mode(air_push)
     
+    def _compute_gain(self, z_mm):
+        """Dynamic cursor gain based on hand distance from camera.
+        Close (30cm) → precise, slow cursor for small targets.
+        Far  (1.5m)  → fast cursor, small wrist flick = full screen.
+        """
+        if z_mm < 100:  # invalid or too close
+            return 1.0
+        raw = (z_mm / AppConfig.Z_GAIN_REF_DISTANCE) ** AppConfig.Z_GAIN_POWER
+        return max(AppConfig.Z_GAIN_MIN, min(AppConfig.Z_GAIN_MAX, raw))
+
     def _screen_pos(self):
-        """Return already-mapped (screen_x, screen_y) for current hand.
-        4% margin keeps hand in reliable stereo zone while maximising range.
+        """Return (screen_x, screen_y) with Z-adaptive cursor gain.
+        4% margin keeps hand in reliable stereo zone.
+        Gain scales cursor speed based on distance from camera.
         """
         nx = self.current_hand_data['index_tip']['normalized_x']
         ny = self.current_hand_data['index_tip']['normalized_y']
-        return (self._map_to_screen(nx, 0.04, AppConfig.SCREEN_WIDTH),
-                self._map_to_screen(ny, 0.04, AppConfig.SCREEN_HEIGHT))
+        z_mm = self.current_hand_data['index_tip']['z']
+
+        gain = self._compute_gain(z_mm)
+
+        # Apply gain around the center of normalised space (0.5, 0.5)
+        cx, cy = 0.5, 0.5
+        nx_scaled = cx + (nx - cx) * gain
+        ny_scaled = cy + (ny - cy) * gain
+
+        return (self._map_to_screen(nx_scaled, 0.04, AppConfig.SCREEN_WIDTH),
+                self._map_to_screen(ny_scaled, 0.04, AppConfig.SCREEN_HEIGHT))
 
     def _check_dwell(self, hovered_idx, air_push):
         """Returns True when a click should fire (air-push OR dwell 1.5 s).
         Also returns dwell_progress [0..1] for the HUD arc indicator.
         """
         now = time.time()
+        if not hasattr(self, '_dwell_last_seen'):
+            self._dwell_last_seen = now
+
         if air_push:
             self._dwell_btn   = None
             self._dwell_start = 0.0
             return True, 0.0
 
-        if hovered_idx is None:
+        # Forgiveness / Leaky Bucket for hand jitter
+        if hovered_idx is None and self._dwell_btn is not None:
+            if (now - self._dwell_last_seen) < 0.3:
+                # Pretend we are still hovering it
+                hovered_idx = self._dwell_btn
+            else:
+                self._dwell_btn   = None
+                self._dwell_start = 0.0
+                return False, 0.0
+        elif hovered_idx is None:
             self._dwell_btn   = None
             self._dwell_start = 0.0
             return False, 0.0
@@ -309,8 +390,10 @@ class AetherLink:
             self._dwell_btn   = hovered_idx
             self._dwell_start = now
 
+        self._dwell_last_seen = now
         elapsed  = now - self._dwell_start
         progress = min(1.0, elapsed / self.DWELL_TIME)
+        
         if elapsed >= self.DWELL_TIME:
             self._dwell_btn   = None
             self._dwell_start = 0.0
@@ -618,6 +701,76 @@ class AetherLink:
             self.sig_recorder.start_recording()
             self.hud.flash_click()
     
+    # ------------------------------------------------------------------
+    def handle_voice_command(self, cmd):
+        """Route voice commands to the appropriate handler.
+        Voice is a surgical patch — it only handles discrete/named actions
+        that the camera cannot do well.
+        """
+        t = cmd['type']
+
+        if t == 'nav':
+            target = cmd['target']
+            if target == 'home':    self.state_machine.go_to_home()
+            elif target == 'media': self.state_machine.go_to_media()
+            elif target == 'mouse': self.state_machine.go_to_mouse()
+            elif target == 'tab':   self.state_machine.go_to_tab()
+            elif target == 'window':self.state_machine.go_to_window()
+            elif target == 'back':  self.state_machine.go_to_home()
+            self.hud.flash_click()
+            print(f"[Voice] Navigation → {target}")
+
+        elif t == 'click':
+            btn = cmd['button']
+            if btn == 'left':      self.mouse_mode.click()
+            elif btn == 'double':  self.mouse_mode.double_click()
+            elif btn == 'right':   self.mouse_mode.right_click()
+            self.hud.flash_click()
+            print(f"[Voice] Click → {btn}")
+
+        elif t == 'text':
+            pyautogui.write(cmd['content'], interval=0.02)
+            self.hud.flash_click()
+            print(f"[Voice] Typed: '{cmd['content']}'")
+
+        elif t == 'media':
+            action = cmd['action']
+            if action == 'play_pause':     self.media_mode.play_pause()
+            elif action == 'volume_up':    self.media_mode.volume_up()
+            elif action == 'volume_down':  self.media_mode.volume_down()
+            elif action == 'next_track':   self.media_mode.next_track()
+            elif action == 'previous_track': self.media_mode.previous_track()
+            elif action == 'mute':         self.media_mode.mute()
+            self.hud.flash_click()
+            print(f"[Voice] Media → {action}")
+
+        elif t == 'tab':
+            action = cmd['action']
+            if action == 'next_tab':     self.tab_mode.next_tab()
+            elif action == 'previous_tab': self.tab_mode.previous_tab()
+            elif action == 'close_tab':  self.tab_mode.close_tab()
+            elif action == 'new_tab':    self.tab_mode.new_tab()
+            self.hud.flash_click()
+            print(f"[Voice] Tab → {action}")
+
+        elif t == 'window':
+            action = cmd['action']
+            if action == 'next_window':     self.window_mode.next_window()
+            elif action == 'previous_window': self.window_mode.previous_window()
+            elif action == 'minimize':      self.window_mode.minimize_window()
+            elif action == 'maximize':      self.window_mode.maximize_window()
+            elif action == 'task_view':     self.window_mode.show_task_view()
+            self.hud.flash_click()
+            print(f"[Voice] Window → {action}")
+
+        elif t == 'action':
+            action = cmd['action']
+            if action == 'screenshot':       self._take_screenshot()
+            elif action == 'toggle_keyboard': self.state_machine.toggle_keyboard_overlay()
+            elif action == 'lock':           self.state_machine.lock()
+            elif action == 'exit':           self.cleanup()
+            print(f"[Voice] Action → {action}")
+
     def _take_screenshot(self):
         """Take screenshot with Win+PrintScreen."""
         pyautogui.hotkey('win', 'printscreen')
@@ -723,6 +876,10 @@ class AetherLink:
     def cleanup(self):
         print("\nShutting down Aether-Link...")
         self.running = False
+
+        # Stop voice engine
+        if self.voice_engine and self.voice_engine.is_available():
+            self.voice_engine.stop()
         
         if self.pipeline:
             self.pipeline.stop()
@@ -735,18 +892,32 @@ class AetherLink:
         sys.exit(0)
     
     def run(self):
+        # Force UTF-8 output so Unicode chars don't crash on Windows console
+        try:
+            sys.stdout.reconfigure(encoding='utf-8')
+        except Exception:
+            pass
+
         print("\n" + "="*60)
-        print("  AETHER-LINK: Touchless Gesture Interface")
+        print("  AETHER-LINK: Touchless Gesture + Voice Interface")
         print("="*60)
-        print("  Gestures:")
-        print("    Air-Push   (push forward 5cm) → Click / Select")
-        print("    Pinch      (thumb + index)    → Toggle Keyboard")
-        print("    Peace Sign (index + middle)   → Screenshot")
-        print("    Open Palm  (all fingers)      → Play/Pause")
-        print("    Swipe      (move hand fast)   → Directional")
+        print("  Gestures (Camera):")
+        print("    Air-Push   (push forward 5cm) => Click / Select")
+        print("    Pinch      (thumb + index)    => Toggle Keyboard")
+        print("    Peace Sign (index + middle)   => Screenshot")
+        print("    Open Palm  (all fingers)      => Play/Pause")
+        print("    Swipe      (move hand fast)   => Directional")
+        if self.voice_engine.is_available():
+            print("  Voice Commands (say clearly):")
+            print("    'click'                       => Click at cursor")
+            print("    'type hello world'            => Type text instantly")
+            print("    'go home' / 'go to media'     => Navigate modes")
+            print("    'play music' / 'volume up'    => Media control")
+            print("    'next tab' / 'close tab'      => Tab control")
+            print("    'minimize window' / 'task view' => Window control")
         print("  Navigation:")
-        print("    BACK button (top-center)      → Go back")
-        print("    Press 'Q' in OpenCV window    → Quit")
+        print("    BACK button (top-center)      => Go back")
+        print("    Press 'Q' in OpenCV window    => Quit")
         print("="*60 + "\n")
         
         sys.exit(self.app.exec())

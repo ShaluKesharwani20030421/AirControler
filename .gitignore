@@ -21,3 +21,8 @@ signatures/
 # Temporary files
 *.tmp
 *.bak
+
+# Large binary models (downloaded separately)
+models/vosk-model-small-en-us-0.15/
+models/vosk-model.zip
+models/*.zip

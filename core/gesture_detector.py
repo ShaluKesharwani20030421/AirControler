@@ -12,18 +12,19 @@ class GestureDetector:
 
     def __init__(self):
         self.depth_history = []
+        self.pos_history = []         # For tracking XY over time for swipes
         self.last_click_time = 0
-        self.click_cooldown = 0.5     # seconds between recognised clicks
+        self.click_cooldown = 0.4     # slightly faster
 
         self.last_swipe_time = 0
-        self.swipe_cooldown = 0.8     # seconds between swipes (prevents accidental triggers)
+        self.swipe_cooldown = 0.4     # reduced from 0.8
 
         self.last_palm_time = 0
-        self.palm_cooldown = 1.5      # seconds — raised from 1.2 to reduce false triggers
+        self.palm_cooldown = 1.0      # reduced from 1.5
 
         # Pinch gesture (thumb + index close together)
         self.last_pinch_time = 0
-        self.pinch_cooldown = 1.0     # seconds between pinch triggers
+        self.pinch_cooldown = 0.5     # reduced from 1.0
         self._was_pinching = False    # edge detection state
 
         # Peace sign gesture (index + middle extended)
@@ -56,6 +57,9 @@ class GestureDetector:
         # ── Only append VALID depth readings ─────────────────────────
         if raw_z >= self.MIN_VALID_DEPTH:
             self.depth_history.append({'z': raw_z, 'time': now})
+            
+        self.pos_history.append({'x': hand_data['index_tip']['x'], 'y': hand_data['index_tip']['y'], 'time': now})
+        self.pos_history = [e for e in self.pos_history if now - e['time'] <= 0.35]
 
         # Keep only entries within the time window
         self.depth_history = [
@@ -91,65 +95,81 @@ class GestureDetector:
 
     # ------------------------------------------------------------------
     # Swipe thresholds: higher = harder to trigger (less false positives)
-    SWIPE_Y_THRESHOLD = 50   # pixels for up/down swipe
-    SWIPE_X_THRESHOLD = 60   # pixels for left/right swipe
+    SWIPE_Y_THRESHOLD = 80   # pixels for up/down swipe
+    SWIPE_X_THRESHOLD = 90   # pixels for left/right swipe
 
     def detect_swipe_up(self, hand_data, prev_hand_data):
-        """Detect upward swipe with cooldown to prevent per-frame firing."""
-        if hand_data is None or prev_hand_data is None:
+        """Detect upward swipe over a time window."""
+        if hand_data is None or len(self.pos_history) < 3:
             return False
         now = time.time()
         if now - self.last_swipe_time < self.swipe_cooldown:
             return False
-        y_diff = prev_hand_data['index_tip']['y'] - hand_data['index_tip']['y']
+        
+        oldest = self.pos_history[0]
+        y_diff = oldest['y'] - hand_data['index_tip']['y']
+        
         if y_diff > self.SWIPE_Y_THRESHOLD:
             self.last_swipe_time = now
             print(f"[Gesture] Swipe Up (Δy={y_diff}px)")
+            self.pos_history.clear()
             return True
         return False
 
     # ------------------------------------------------------------------
     def detect_swipe_down(self, hand_data, prev_hand_data):
-        """Detect downward swipe with cooldown."""
-        if hand_data is None or prev_hand_data is None:
+        """Detect downward swipe over a time window."""
+        if hand_data is None or len(self.pos_history) < 3:
             return False
         now = time.time()
         if now - self.last_swipe_time < self.swipe_cooldown:
             return False
-        y_diff = hand_data['index_tip']['y'] - prev_hand_data['index_tip']['y']
+            
+        oldest = self.pos_history[0]
+        y_diff = hand_data['index_tip']['y'] - oldest['y']
+        
         if y_diff > self.SWIPE_Y_THRESHOLD:
             self.last_swipe_time = now
             print(f"[Gesture] Swipe Down (Δy={y_diff}px)")
+            self.pos_history.clear()
             return True
         return False
 
     # ------------------------------------------------------------------
     def detect_swipe_left(self, hand_data, prev_hand_data):
-        """Detect leftward swipe (for tab switching)."""
-        if hand_data is None or prev_hand_data is None:
+        """Detect leftward swipe over a time window."""
+        if hand_data is None or len(self.pos_history) < 3:
             return False
         now = time.time()
         if now - self.last_swipe_time < self.swipe_cooldown:
             return False
-        x_diff = prev_hand_data['index_tip']['x'] - hand_data['index_tip']['x']
+            
+        oldest = self.pos_history[0]
+        x_diff = oldest['x'] - hand_data['index_tip']['x']
+        
         if x_diff > self.SWIPE_X_THRESHOLD:
             self.last_swipe_time = now
             print(f"[Gesture] Swipe Left (Δx={x_diff}px)")
+            self.pos_history.clear()
             return True
         return False
 
     # ------------------------------------------------------------------
     def detect_swipe_right(self, hand_data, prev_hand_data):
-        """Detect rightward swipe (for tab switching)."""
-        if hand_data is None or prev_hand_data is None:
+        """Detect rightward swipe over a time window."""
+        if hand_data is None or len(self.pos_history) < 3:
             return False
         now = time.time()
         if now - self.last_swipe_time < self.swipe_cooldown:
             return False
-        x_diff = hand_data['index_tip']['x'] - prev_hand_data['index_tip']['x']
+            
+        oldest = self.pos_history[0]
+        x_diff = hand_data['index_tip']['x'] - oldest['x']
+        
         if x_diff > self.SWIPE_X_THRESHOLD:
             self.last_swipe_time = now
             print(f"[Gesture] Swipe Right (Δx={x_diff}px)")
+            self.pos_history.clear()
             return True
         return False
 
@@ -269,6 +289,7 @@ class GestureDetector:
     # ------------------------------------------------------------------
     def reset(self):
         self.depth_history.clear()
+        self.pos_history.clear()
         self.last_click_time = 0
         self.last_swipe_time = 0
         self.last_palm_time = 0
